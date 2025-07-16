@@ -1,0 +1,6 @@
+.mypy_cache
+credentials\google-credentials.json
+__pycache__
+sms_parser\__pycache__
+venv
+.env
