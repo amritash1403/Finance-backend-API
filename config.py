@@ -6,20 +6,19 @@ Contains paths, static data, and application settings.
 import os
 import logging
 from typing import List, Dict, Any
-
-# First, try to load from .env file (development)
-# This will only load variables that aren't already set
-try:
-    from dotenv import load_dotenv
-
-    load_dotenv()
-    ENV_SOURCE = ".env file (if present)"
-except ImportError:
-    # If python-dotenv is not available, just use os.environ
-    ENV_SOURCE = "environment variables only"
+from dotenv import load_dotenv
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)
+
+# First, try to load from .env file (development)
+# This will only load variables that aren't already set
+if os.path.exists(".env"):
+    if load_dotenv(".env", override=False):
+        logger.info("Loaded environment variables from .env file")
+else:
+    logger.warning(".env file not found, using system environment variables")
+    logger.info(f"Available environment variables: {list(os.environ.keys())}")
 
 
 def get_env_variable(key: str, default: str = None) -> str:
@@ -38,10 +37,8 @@ def get_env_variable(key: str, default: str = None) -> str:
     Returns:
         The environment variable value or default
     """
-    value = os.getenv(key, default)
-    logger.info(
-        f"Fetching environment variable: {key}: {value[:50]} (source: {ENV_SOURCE})"
-    )
+    value = os.environ.get(key, default)
+    logger.info(f"Fetching environment variable: {key}: {value[:50]})")
     return value
 
 
