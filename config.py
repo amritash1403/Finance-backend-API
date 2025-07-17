@@ -103,6 +103,51 @@ def get_google_credentials_path():
     return credentials_path
 
 
+def get_google_credentials_info():
+    """
+    Get Google Service Account credentials as a dictionary.
+    This is useful for environments where file creation is restricted.
+
+    Returns:
+        dict: Google Service Account credentials dictionary
+
+    Raises:
+        ValueError: If required environment variables are missing
+    """
+    required_env_vars = [
+        "GOOGLE_PROJECT_ID",
+        "GOOGLE_PRIVATE_KEY_ID",
+        "GOOGLE_PRIVATE_KEY",
+        "GOOGLE_CLIENT_EMAIL",
+        "GOOGLE_CLIENT_ID",
+    ]
+
+    # Check if all required environment variables are present
+    missing_vars = [var for var in required_env_vars if not get_env_variable(var)]
+    if missing_vars:
+        raise ValueError(
+            f"Missing required environment variables: {', '.join(missing_vars)}"
+        )
+
+    # Build credentials dictionary
+    credentials = {
+        "type": "service_account",
+        "project_id": get_env_variable("GOOGLE_PROJECT_ID"),
+        "private_key_id": get_env_variable("GOOGLE_PRIVATE_KEY_ID"),
+        "private_key": get_env_variable("GOOGLE_PRIVATE_KEY"),
+        "client_email": get_env_variable("GOOGLE_CLIENT_EMAIL"),
+        "client_id": get_env_variable("GOOGLE_CLIENT_ID"),
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{get_env_variable('GOOGLE_CLIENT_EMAIL').replace('@', '%40')}",
+        "universe_domain": "googleapis.com",
+    }
+
+    print("✅ Google credentials loaded dynamically from environment variables")
+    return credentials
+
+
 class Paths:
     """File paths configuration."""
 
@@ -111,6 +156,11 @@ class Paths:
     def get_google_credentials_path():
         """Get Google credentials path, creating file from env vars if needed."""
         return get_google_credentials_path()
+
+    @staticmethod
+    def get_google_credentials_info():
+        """Get Google credentials as dictionary from env vars."""
+        return get_google_credentials_info()
 
     # Logs directory
     LOGS_DIR = os.path.join(os.path.dirname(__file__), "logs")
