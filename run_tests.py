@@ -18,6 +18,7 @@ from pprint import pprint
 sys.path.insert(0, os.path.dirname(__file__))
 
 from sheet_manager import SheetManager
+from config import get_env_variable
 from sms_parser import get_transaction_info
 from config import ValidationRules
 import dotenv
@@ -29,7 +30,7 @@ class TestSuite:
     """Comprehensive test suite for the Finance SMS Logger application."""
 
     def __init__(self):
-        self.base_url = "http://localhost:5000"
+        self.base_url = "https://dawn-waterfall-6858.ploomber.app"
         self.sheet_manager = None
         self.test_results = {
             "parser": {"passed": 0, "failed": 0},
@@ -264,7 +265,7 @@ class TestSuite:
         print("=" * 60)
 
         # Check if API key is configured
-        api_key = os.getenv("API_KEY")
+        api_key = get_env_variable("API_KEY")
         if not api_key:
             print(
                 "⚠️  API_KEY environment variable not set. Using test key for testing."
@@ -373,7 +374,7 @@ class TestSuite:
         print("=" * 60)
 
         # Get API key for authenticated requests
-        self.api_key = os.getenv("API_KEY", "test-api-key")
+        self.api_key = get_env_variable("API_KEY", "test-api-key")
         self.auth_headers = {
             "X-API-KEY": self.api_key,
             "Content-Type": "application/json",

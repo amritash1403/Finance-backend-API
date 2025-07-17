@@ -30,11 +30,11 @@ class SheetManager:
     def _initialize_services(self):
         """Initialize Google Sheets API service."""
         try:
-            # Get credentials path (will create dynamically if needed)
-            credentials_path = Paths.get_google_credentials_path()
+            # Get credentials info (dictionary) instead of file path
+            credentials_info = Paths.get_google_credentials_info()
 
-            credentials = Credentials.from_service_account_file(
-                credentials_path, scopes=AppConfig.GOOGLE_SHEETS_SCOPES
+            credentials = Credentials.from_service_account_info(
+                credentials_info, scopes=AppConfig.GOOGLE_SHEETS_SCOPES
             )
 
             self.service = build("sheets", "v4", credentials=credentials)
@@ -49,11 +49,6 @@ class SheetManager:
                 "Please check your .env file has all required GOOGLE_* variables"
             )
             return
-        except FileNotFoundError:
-            self.logger.error(
-                f"Google credentials file not found at {Paths.GOOGLE_CREDENTIALS_PATH}"
-            )
-            return  # Don't raise, just return without initializing services
         except GoogleAuthError as e:
             self.logger.error(f"Google authentication error: {e}")
             return  # Don't raise, just return without initializing services

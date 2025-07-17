@@ -13,7 +13,7 @@ from typing import Dict, Any
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
-from config import AppConfig
+from config import AppConfig, get_env_variable
 
 
 class AuthenticationTestSuite:
@@ -21,7 +21,7 @@ class AuthenticationTestSuite:
 
     def __init__(self):
         self.base_url = "http://localhost:5000"
-        self.valid_api_key = os.getenv("API_KEY", "test-api-key")
+        self.valid_api_key = get_env_variable("API_KEY", "test-api-key")
         self.invalid_api_key = "invalid-key-123"
         self.test_results = {"passed": 0, "failed": 0, "errors": []}
 
@@ -320,7 +320,7 @@ def main():
         return
 
     # Check if API key is set
-    if not os.getenv("API_KEY"):
+    if not get_env_variable("API_KEY"):
         print("⚠️  API_KEY environment variable not set. Using default 'test-api-key'")
         os.environ["API_KEY"] = "test-api-key"
 

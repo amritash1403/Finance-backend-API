@@ -6,10 +6,37 @@ Contains paths, static data, and application settings.
 import os
 import json
 from typing import List, Dict, Any
-from dotenv import load_dotenv
 
-# Load environment variables from .env file
-load_dotenv()
+# First, try to load from .env file (development)
+# This will only load variables that aren't already set
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+    ENV_SOURCE = ".env file (if present)"
+except ImportError:
+    # If python-dotenv is not available, just use os.environ
+    ENV_SOURCE = "environment variables only"
+
+
+def get_env_variable(key: str, default: str = None) -> str:
+    """
+    Get environment variable with fallback support.
+
+    Priority order:
+    1. .env file (if dotenv is available and file exists)
+    2. Actual environment variables
+    3. Default value
+
+    Args:
+        key: Environment variable name
+        default: Default value if variable not found
+
+    Returns:
+        The environment variable value or default
+    """
+    value = os.getenv(key, default)
+    return value
 
 
 def get_google_credentials_path():
@@ -43,7 +70,7 @@ def get_google_credentials_path():
     ]
 
     # Check if all required environment variables are present
-    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+    missing_vars = [var for var in required_env_vars if not get_env_variable(var)]
     if missing_vars:
         raise ValueError(
             f"Missing required environment variables: {', '.join(missing_vars)}"
@@ -52,15 +79,15 @@ def get_google_credentials_path():
     # Build credentials dictionary
     credentials = {
         "type": "service_account",
-        "project_id": os.getenv("GOOGLE_PROJECT_ID"),
-        "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
-        "private_key": os.getenv("GOOGLE_PRIVATE_KEY"),
-        "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
-        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+        "project_id": get_env_variable("GOOGLE_PROJECT_ID"),
+        "private_key_id": get_env_variable("GOOGLE_PRIVATE_KEY_ID"),
+        "private_key": get_env_variable("GOOGLE_PRIVATE_KEY"),
+        "client_email": get_env_variable("GOOGLE_CLIENT_EMAIL"),
+        "client_id": get_env_variable("GOOGLE_CLIENT_ID"),
         "auth_uri": "https://accounts.google.com/o/oauth2/auth",
         "token_uri": "https://oauth2.googleapis.com/token",
         "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
-        "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{os.getenv('GOOGLE_CLIENT_EMAIL').replace('@', '%40')}",
+        "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{get_env_variable('GOOGLE_CLIENT_EMAIL').replace('@', '%40')}",
         "universe_domain": "googleapis.com",
     }
 
@@ -76,6 +103,51 @@ def get_google_credentials_path():
     return credentials_path
 
 
+def get_google_credentials_info():
+    """
+    Get Google Service Account credentials as a dictionary.
+    This is useful for environments where file creation is restricted.
+
+    Returns:
+        dict: Google Service Account credentials dictionary
+
+    Raises:
+        ValueError: If required environment variables are missing
+    """
+    required_env_vars = [
+        "GOOGLE_PROJECT_ID",
+        "GOOGLE_PRIVATE_KEY_ID",
+        "GOOGLE_PRIVATE_KEY",
+        "GOOGLE_CLIENT_EMAIL",
+        "GOOGLE_CLIENT_ID",
+    ]
+
+    # Check if all required environment variables are present
+    missing_vars = [var for var in required_env_vars if not get_env_variable(var)]
+    if missing_vars:
+        raise ValueError(
+            f"Missing required environment variables: {', '.join(missing_vars)}"
+        )
+
+    # Build credentials dictionary
+    credentials = {
+        "type": "service_account",
+        "project_id": get_env_variable("GOOGLE_PROJECT_ID"),
+        "private_key_id": get_env_variable("GOOGLE_PRIVATE_KEY_ID"),
+        "private_key": get_env_variable("GOOGLE_PRIVATE_KEY"),
+        "client_email": get_env_variable("GOOGLE_CLIENT_EMAIL"),
+        "client_id": get_env_variable("GOOGLE_CLIENT_ID"),
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{get_env_variable('GOOGLE_CLIENT_EMAIL').replace('@', '%40')}",
+        "universe_domain": "googleapis.com",
+    }
+
+    print("✅ Google credentials loaded dynamically from environment variables")
+    return credentials
+
+
 class Paths:
     """File paths configuration."""
 
@@ -85,11 +157,16 @@ class Paths:
         """Get Google credentials path, creating file from env vars if needed."""
         return get_google_credentials_path()
 
+    @staticmethod
+    def get_google_credentials_info():
+        """Get Google credentials as dictionary from env vars."""
+        return get_google_credentials_info()
+
     # Logs directory
     LOGS_DIR = os.path.join(os.path.dirname(__file__), "logs")
 
     # Google Sheets configuration
-    SHARED_WORKBOOK_ID = os.getenv(
+    SHARED_WORKBOOK_ID = get_env_variable(
         "GSHEET_SHARED_WORKBOOK_ID", "your-shared-workbook-id-here"
     )
 
@@ -183,21 +260,23 @@ class AppConfig:
     """Flask application configuration."""
 
     # Flask settings (from environment)
-    SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here-change-in-production")
-    DEBUG = os.getenv("DEBUG", "True").lower() == "true"
+    SECRET_KEY = get_env_variable(
+        "SECRET_KEY", "your-secret-key-here-change-in-production"
+    )
+    DEBUG = get_env_variable("DEBUG", "True").lower() == "true"
 
     # API settings (mostly constants, version can be overridden)
-    API_VERSION = os.getenv("API_VERSION", "v1")
+    API_VERSION = get_env_variable("API_VERSION", "v1")
     API_PREFIX = f"/api/{API_VERSION}"
 
     # API Security settings
-    API_KEY = os.getenv("API_KEY")  # Required for API endpoints authentication
+    API_KEY = get_env_variable("API_KEY")  # Required for API endpoints authentication
 
     # Google Sheets API settings (constants)
     GOOGLE_SHEETS_SCOPES = ["https://www.googleapis.com/auth/spreadsheets"]
 
     # Logging settings (from environment)
-    LOG_LEVEL = os.getenv("LOG_LEVEL", "INFO")
+    LOG_LEVEL = get_env_variable("LOG_LEVEL", "INFO")
     LOG_FORMAT = "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
     LOGS_DIR = Paths.LOGS_DIR
 
@@ -205,8 +284,8 @@ class AppConfig:
     SHEET_NAME_FORMAT = "{month}-{year}"  # e.g., "July-2025"
 
     # Validation settings (from environment with defaults)
-    MAX_SMS_LENGTH = int(os.getenv("MAX_SMS_LENGTH", "1000"))
-    MIN_SMS_LENGTH = int(os.getenv("MIN_SMS_LENGTH", "10"))
+    MAX_SMS_LENGTH = int(get_env_variable("MAX_SMS_LENGTH", "1000"))
+    MIN_SMS_LENGTH = int(get_env_variable("MIN_SMS_LENGTH", "10"))
 
 
 class ValidationRules:

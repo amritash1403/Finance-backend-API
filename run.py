@@ -51,9 +51,6 @@ try:
     # Create necessary directories
     os.makedirs(AppConfig.LOGS_DIR, exist_ok=True)
 
-    # Run the Flask app
-    app.run(host="0.0.0.0", port=5000, debug=AppConfig.DEBUG)
-
 except ImportError as e:
     print(f"Import error: {e}")
     print(

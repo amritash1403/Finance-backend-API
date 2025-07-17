@@ -8,6 +8,7 @@ import json
 import shutil
 from pathlib import Path
 from dotenv import load_dotenv
+from config import get_env_variable
 
 # Load environment variables
 load_dotenv()
@@ -44,7 +45,7 @@ def check_environment_variables():
 
     # Check required variables
     for var, default_value in required_env_vars.items():
-        current_value = os.getenv(var)
+        current_value = get_env_variable(var)
 
         if not current_value:
             env_status["missing_required"].append(var)
@@ -58,7 +59,7 @@ def check_environment_variables():
 
     # Check optional variables
     for var, default_value in optional_env_vars.items():
-        current_value = os.getenv(var)
+        current_value = get_env_variable(var)
 
         if not current_value:
             print(f"ℹ️  {var}: Using default ({default_value})")
