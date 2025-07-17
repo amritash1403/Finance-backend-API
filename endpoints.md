@@ -13,11 +13,58 @@ http://localhost:5000
 | Endpoint                      | Method | Description                       | Authentication |
 | ----------------------------- | ------ | --------------------------------- | -------------- |
 | `/health`                     | GET    | Health check                      | None           |
-| `/api/v1/log`                 | POST   | Log SMS transaction               | None           |
-| `/api/v1/test-parser`         | POST   | Test SMS parsing                  | None           |
-| `/api/v1/sheets/{month-year}` | GET    | Get sheet information             | None           |
-| `/api/v1/stats`               | GET    | Get current month spending stats  | None           |
-| `/api/v1/stats/{month-year}`  | GET    | Get specific month spending stats | None           |
+| `/api/v1/log`                 | POST   | Log SMS transaction               | X-API-KEY      |
+| `/api/v1/test-parser`         | POST   | Test SMS parsing                  | X-API-KEY      |
+| `/api/v1/sheets/{month-year}` | GET    | Get sheet information             | X-API-KEY      |
+| `/api/v1/stats`               | GET    | Get current month spending stats  | X-API-KEY      |
+| `/api/v1/stats/{month-year}`  | GET    | Get specific month spending stats | X-API-KEY      |
+
+**Note**: The two statistics endpoints return different response formats:
+
+- `/api/v1/stats` (current month) returns `categories` with both `amount` and `count` for each category
+- `/api/v1/stats/{month-year}` (specific month) returns `category_breakdown` with only amounts
+
+## 🔐 Authentication
+
+All API endpoints (routes starting with `/api/v1/`) require authentication using the `X-API-KEY` header. The `/health` endpoint does not require authentication.
+
+**Required Header**:
+
+```
+X-API-KEY: your-api-key-here
+```
+
+**Authentication Errors**:
+
+**403 Forbidden - Missing API Key**:
+
+```json
+{
+  "success": false,
+  "error": "Authentication required",
+  "message": "X-API-KEY header is required for API endpoints"
+}
+```
+
+**403 Forbidden - Invalid API Key**:
+
+```json
+{
+  "success": false,
+  "error": "Authentication failed",
+  "message": "Invalid API key"
+}
+```
+
+**500 Server Error - API Key Not Configured**:
+
+```json
+{
+  "success": false,
+  "error": "Authentication not configured",
+  "message": "Server configuration error - contact administrator"
+}
+```
 
 ---
 
@@ -134,6 +181,7 @@ curl http://localhost:5000/health
 ```bash
 curl -X POST http://localhost:5000/api/v1/log \
   -H "Content-Type: application/json" \
+  -H "X-API-KEY: your-api-key-here" \
   -d '{
     "text": "INR 2000 debited from A/c no. XX3423 on 05-02-19 07:27:11 IST at ECS PAY. Avl Bal- INR 2343.23.",
     "date": "2025-07-14T10:30:00"
@@ -202,6 +250,7 @@ curl -X POST http://localhost:5000/api/v1/log \
 ```bash
 curl -X POST http://localhost:5000/api/v1/test-parser \
   -H "Content-Type: application/json" \
+  -H "X-API-KEY: your-api-key-here" \
   -d '{
     "text": "INR 2000 debited from A/c no. XX3423 on 05-02-19 07:27:11 IST at ECS PAY. Avl Bal- INR 2343.23."
   }'
@@ -496,11 +545,12 @@ All errors follow this format:
 
 ```javascript
 // Log SMS transaction
-async function logSMS(smsText, date) {
+async function logSMS(smsText, date, apiKey) {
   const response = await fetch("http://localhost:5000/api/v1/log", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
+      "X-API-KEY": apiKey,
     },
     body: JSON.stringify({
       text: smsText,
@@ -513,12 +563,16 @@ async function logSMS(smsText, date) {
 }
 
 // Get spending statistics
-async function getSpendingStats(monthYear) {
+async function getSpendingStats(apiKey, monthYear) {
   const url = monthYear
     ? `http://localhost:5000/api/v1/stats/${monthYear}`
     : "http://localhost:5000/api/v1/stats";
 
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: {
+      "X-API-KEY": apiKey,
+    },
+  });
   const data = await response.json();
   return data;
 }
@@ -531,23 +585,25 @@ import requests
 import json
 
 # Log SMS transaction
-def log_sms(sms_text, date=None):
+def log_sms(sms_text, api_key, date=None):
     url = 'http://localhost:5000/api/v1/log'
+    headers = {'X-API-KEY': api_key}
     payload = {'text': sms_text}
     if date:
         payload['date'] = date
 
-    response = requests.post(url, json=payload)
+    response = requests.post(url, json=payload, headers=headers)
     return response.json()
 
 # Get spending statistics
-def get_spending_stats(month_year=None):
+def get_spending_stats(api_key, month_year=None):
+    headers = {'X-API-KEY': api_key}
     if month_year:
         url = f'http://localhost:5000/api/v1/stats/{month_year}'
     else:
         url = 'http://localhost:5000/api/v1/stats'
 
-    response = requests.get(url)
+    response = requests.get(url, headers=headers)
     return response.json()
 ```
 
@@ -560,11 +616,11 @@ def get_spending_stats(month_year=None):
 ```bash
 # Test all endpoints
 curl http://localhost:5000/health
-curl -X POST http://localhost:5000/api/v1/test-parser -H "Content-Type: application/json" -d '{"text": "Test SMS"}'
-curl -X POST http://localhost:5000/api/v1/log -H "Content-Type: application/json" -d '{"text": "Test SMS", "date": "2025-07-14T10:30:00"}'
-curl http://localhost:5000/api/v1/sheets/July-2025
-curl http://localhost:5000/api/v1/stats
-curl http://localhost:5000/api/v1/stats/July-2025
+curl -X POST http://localhost:5000/api/v1/test-parser -H "Content-Type: application/json" -H "X-API-KEY: your-api-key-here" -d '{"text": "Test SMS"}'
+curl -X POST http://localhost:5000/api/v1/log -H "Content-Type: application/json" -H "X-API-KEY: your-api-key-here" -d '{"text": "Test SMS", "date": "2025-07-14T10:30:00"}'
+curl -H "X-API-KEY: your-api-key-here" http://localhost:5000/api/v1/sheets/July-2025
+curl -H "X-API-KEY: your-api-key-here" http://localhost:5000/api/v1/stats
+curl -H "X-API-KEY: your-api-key-here" http://localhost:5000/api/v1/stats/July-2025
 ```
 
 ### Using Python Test Script
@@ -610,11 +666,19 @@ Currently no rate limiting is implemented. For production use, consider:
 
 ### Authentication
 
-Currently, no authentication is implemented. For production:
+API key authentication is implemented using the `X-API-KEY` header for all API endpoints:
 
-- Implement API key authentication
-- Add JWT token validation
-- Use OAuth2 for user authentication
+- **Current Implementation**: X-API-KEY header validation for `/api/v1/*` routes
+- **Health Endpoint**: `/health` endpoint is publicly accessible
+- **Environment Variable**: API key is configured via `API_KEY` environment variable
+- **Error Handling**: Returns 403 Forbidden for missing/invalid keys
+
+For additional security in production, consider:
+
+- JWT token validation for user-based authentication
+- Rate limiting per API key
+- API key rotation mechanisms
+- OAuth2 for user authentication
 
 ### Input Validation
 

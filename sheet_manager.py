@@ -525,30 +525,6 @@ class SheetManager:
             self.logger.error(f"Error getting sheet statistics: {e}")
             return {"error": str(e)}
 
-    def _get_last_modified_time(self, sheet_name: str) -> Optional[datetime]:
-        """Get the last modified time of a sheet."""
-        try:
-            spreadsheet = (
-                self.service.spreadsheets()
-                .get(spreadsheetId=self.shared_workbook_id)
-                .execute()
-            )
-            sheets = spreadsheet.get("sheets", [])
-
-            for sheet in sheets:
-                if sheet["properties"]["title"] == sheet_name:
-                    last_modified = sheet["properties"].get("modifiedTime")
-                    if last_modified:
-                        # Remove 'Z' at the end and convert to int timestamp
-                        dt = datetime.fromisoformat(last_modified[:-1])
-                        return int(dt.timestamp())
-
-            return None
-
-        except Exception as e:
-            self.logger.error(f"Error getting last modified time: {e}")
-            return None
-
     def get_month_spends(self, month: str, year: int) -> Dict[str, Any]:
         """Get total spends for a specific month and year."""
         try:
@@ -557,8 +533,8 @@ class SheetManager:
             # Check cache first (simple time-based caching)
             if sheet_name in self.monthly_spends_cache:
                 cached_data, cache_timestamp = self.monthly_spends_cache[sheet_name]
-                # Cache is valid for 5 minutes (3000 seconds)
-                if time.time() - cache_timestamp < 3000:
+                # Cache is valid for 5 minutes (300 seconds)
+                if time.time() - cache_timestamp < 300:
                     self.logger.info(f"Returning cached data for {sheet_name}")
                     return cached_data
 

@@ -41,6 +41,66 @@ except Exception as e:
     sheet_manager = None
 
 
+@app.before_request
+def authenticate_api_request():
+    """
+    Middleware to authenticate API requests using X-API-KEY header.
+    Only applies to routes starting with config.API_PREFIX.
+    """
+    # Only check authentication for API routes
+    if request.path.startswith(AppConfig.API_PREFIX):
+        # Check if API key is configured
+        if not AppConfig.API_KEY:
+            logger.error("API_KEY environment variable not configured")
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Authentication not configured",
+                        "message": "Server configuration error - contact administrator",
+                    }
+                ),
+                500,
+            )
+
+        # Get the API key from headers
+        provided_key = request.headers.get("X-API-KEY")
+
+        # Check if header is missing
+        if not provided_key:
+            logger.warning(
+                f"Missing X-API-KEY header for {request.path} from {request.remote_addr}"
+            )
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Authentication required",
+                        "message": "X-API-KEY header is required for API endpoints",
+                    }
+                ),
+                403,
+            )
+
+        # Check if API key is valid
+        if provided_key != AppConfig.API_KEY:
+            logger.warning(
+                f"Invalid X-API-KEY header for {request.path} from {request.remote_addr}"
+            )
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Authentication failed",
+                        "message": "Invalid API key",
+                    }
+                ),
+                403,
+            )
+
+        logger.debug(f"Valid API key provided for {request.path}")
+
+
 @app.route("/health", methods=["GET"])
 def health_check():
     """Health check endpoint."""
@@ -98,6 +158,7 @@ def log_sms_transaction():
         # Parse date
         try:
             date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            print(f"Parsed date: {date}")
         except ValueError:
             raise BadRequest(
                 "Invalid date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)"
@@ -227,7 +288,7 @@ def test_parser():
             transaction_info = get_transaction_info(text)
             transaction_data = transaction_info.to_dict() if transaction_info else {}
 
-            is_valid = ValidationRules.is_valid_transaction(transaction_data)
+            is_valid = ValidationRules.is_valid_transaction(transaction_data, text)
 
             return (
                 jsonify(

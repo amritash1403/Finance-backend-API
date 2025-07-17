@@ -36,6 +36,7 @@ class TestSuite:
             "sheets": {"passed": 0, "failed": 0},
             "api": {"passed": 0, "failed": 0},
             "cache": {"passed": 0, "failed": 0},
+            "auth": {"passed": 0, "failed": 0},
         }
 
     def run_all_tests(self):
@@ -56,11 +57,15 @@ class TestSuite:
         self.test_monthly_spending_stats()
         print()
 
-        # Test 4: API Endpoints
+        # Test 4: Authentication Middleware
+        self.test_authentication_middleware()
+        print()
+
+        # Test 5: API Endpoints
         self.test_api_endpoints()
         print()
 
-        # Test 5: Performance and Caching
+        # Test 6: Performance and Caching
         self.test_performance_and_caching()
         print()
 
@@ -207,10 +212,12 @@ class TestSuite:
                 if result["categories"]:
                     print("📈 Top 3 categories:")
                     sorted_cats = sorted(
-                        result["categories"].items(), key=lambda x: x[1], reverse=True
+                        result["categories"].items(),
+                        key=lambda x: x[1]["amount"],
+                        reverse=True,
                     )
-                    for i, (cat, amount) in enumerate(sorted_cats[:3]):
-                        print(f"   {i+1}. {cat}: ₹{amount:.2f}")
+                    for i, (cat, cat_data) in enumerate(sorted_cats[:3]):
+                        print(f"   {i+1}. {cat}: ₹{cat_data['amount']:.2f}")
 
                 self.test_results["cache"]["passed"] += 1
 
@@ -251,10 +258,126 @@ class TestSuite:
             print(f"❌ Error testing spending stats: {e}")
             self.test_results["cache"]["failed"] += 1
 
+    def test_authentication_middleware(self):
+        """Test authentication middleware for API endpoints."""
+        print("🔐 TESTING AUTHENTICATION MIDDLEWARE")
+        print("=" * 60)
+
+        # Check if API key is configured
+        api_key = os.getenv("API_KEY")
+        if not api_key:
+            print(
+                "⚠️  API_KEY environment variable not set. Using test key for testing."
+            )
+            api_key = "test-api-key"
+
+        # Test 1: Health endpoint should not require auth
+        print("\n🏥 Testing health endpoint (no auth required)...")
+        try:
+            response = requests.get(f"{self.base_url}/health", timeout=5)
+            if response.status_code == 200:
+                print("✅ Health endpoint accessible without authentication")
+                self.test_results["auth"]["passed"] += 1
+            else:
+                print(f"❌ Health endpoint failed: {response.status_code}")
+                self.test_results["auth"]["failed"] += 1
+        except Exception as e:
+            print(f"❌ Health endpoint error: {e}")
+            self.test_results["auth"]["failed"] += 1
+
+        # Test 2: API endpoints should require auth
+        print("\n🚫 Testing API endpoints without authentication...")
+        test_endpoints = [
+            ("GET", "/api/v1/stats"),
+            ("POST", "/api/v1/test-parser", {"text": "Test SMS"}),
+        ]
+
+        for method, endpoint, *data in test_endpoints:
+            try:
+                if method == "POST":
+                    response = requests.post(
+                        f"{self.base_url}{endpoint}",
+                        json=data[0] if data else None,
+                        timeout=5,
+                    )
+                else:
+                    response = requests.get(f"{self.base_url}{endpoint}", timeout=5)
+
+                if response.status_code == 403:
+                    print(f"✅ {method} {endpoint} correctly requires authentication")
+                    self.test_results["auth"]["passed"] += 1
+                else:
+                    print(
+                        f"❌ {method} {endpoint} should require auth (got {response.status_code})"
+                    )
+                    self.test_results["auth"]["failed"] += 1
+            except Exception as e:
+                print(f"❌ {method} {endpoint} test error: {e}")
+                self.test_results["auth"]["failed"] += 1
+
+        # Test 3: API endpoints with valid auth should work
+        print("\n✅ Testing API endpoints with valid authentication...")
+        headers = {"X-API-KEY": api_key}
+
+        for method, endpoint, *data in test_endpoints:
+            try:
+                if method == "POST":
+                    response = requests.post(
+                        f"{self.base_url}{endpoint}",
+                        json=data[0] if data else None,
+                        headers=headers,
+                        timeout=5,
+                    )
+                else:
+                    response = requests.get(
+                        f"{self.base_url}{endpoint}", headers=headers, timeout=5
+                    )
+
+                # Should not get 403 with valid auth
+                if response.status_code != 403:
+                    print(f"✅ {method} {endpoint} accepts valid authentication")
+                    self.test_results["auth"]["passed"] += 1
+                else:
+                    print(f"❌ {method} {endpoint} rejected valid auth")
+                    self.test_results["auth"]["failed"] += 1
+            except Exception as e:
+                print(f"❌ {method} {endpoint} valid auth test error: {e}")
+                self.test_results["auth"]["failed"] += 1
+
+        # Test 4: API endpoints with invalid auth should fail
+        print("\n🔑 Testing API endpoints with invalid authentication...")
+        invalid_headers = {"X-API-KEY": "invalid-key-123"}
+
+        try:
+            response = requests.get(
+                f"{self.base_url}/api/v1/stats", headers=invalid_headers, timeout=5
+            )
+            if response.status_code == 403:
+                response_data = response.json()
+                if "Authentication failed" in response_data.get("error", ""):
+                    print("✅ Invalid API key correctly rejected")
+                    self.test_results["auth"]["passed"] += 1
+                else:
+                    print("❌ Wrong error message for invalid key")
+                    self.test_results["auth"]["failed"] += 1
+            else:
+                print(f"❌ Invalid key should return 403 (got {response.status_code})")
+                self.test_results["auth"]["failed"] += 1
+        except Exception as e:
+            print(f"❌ Invalid auth test error: {e}")
+            self.test_results["auth"]["failed"] += 1
+
     def test_api_endpoints(self):
         """Test API endpoints."""
         print("🌐 TESTING API ENDPOINTS")
         print("=" * 60)
+
+        # Get API key for authenticated requests
+        self.api_key = os.getenv("API_KEY", "test-api-key")
+        self.auth_headers = {
+            "X-API-KEY": self.api_key,
+            "Content-Type": "application/json",
+        }
 
         # Test health check
         self._test_health_endpoint()
@@ -303,7 +426,7 @@ class TestSuite:
             response = requests.post(
                 f"{self.base_url}/api/v1/log",
                 json=test_payload,
-                headers={"Content-Type": "application/json"},
+                headers=self.auth_headers,
                 timeout=10,
             )
 
@@ -333,8 +456,8 @@ class TestSuite:
             response = requests.post(
                 f"{self.base_url}/api/v1/test-parser",
                 json=test_payload,
-                headers={"Content-Type": "application/json"},
-                timeout=5,
+                headers=self.auth_headers,
+                timeout=10,
             )
 
             if response.status_code == 200:
@@ -356,7 +479,9 @@ class TestSuite:
 
         try:
             response = requests.get(
-                f"{self.base_url}/api/v1/sheets/July-2025", timeout=5
+                f"{self.base_url}/api/v1/sheets/July-2025",
+                headers=self.auth_headers,
+                timeout=5,
             )
 
             if response.status_code == 200:
@@ -378,7 +503,9 @@ class TestSuite:
 
         # Test current month stats
         try:
-            response = requests.get(f"{self.base_url}/api/v1/stats", timeout=10)
+            response = requests.get(
+                f"{self.base_url}/api/v1/stats", headers=self.auth_headers, timeout=10
+            )
 
             if response.status_code == 200:
                 print("✅ Current month stats endpoint working")
@@ -398,7 +525,9 @@ class TestSuite:
         # Test specific month stats
         try:
             response = requests.get(
-                f"{self.base_url}/api/v1/stats/July-2025", timeout=10
+                f"{self.base_url}/api/v1/stats/July-2025",
+                headers=self.auth_headers,
+                timeout=10,
             )
 
             if response.status_code == 200:
@@ -437,7 +566,7 @@ class TestSuite:
         for i in range(3):
             try:
                 start_time = time.time()
-                response = requests.get(endpoint, timeout=10)
+                response = requests.get(endpoint, headers=self.auth_headers, timeout=10)
                 end_time = time.time()
 
                 if response.status_code == 200:
