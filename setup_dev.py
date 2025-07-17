@@ -23,6 +23,12 @@ def check_environment_variables():
         "SECRET_KEY": "your-secret-key-here-change-in-production",
         "API_KEY": "your-secure-api-key-here",
         "GSHEET_SHARED_WORKBOOK_ID": "your-shared-workbook-id-here",
+        # Google Service Account credentials (required for deployment)
+        "GOOGLE_PROJECT_ID": None,
+        "GOOGLE_PRIVATE_KEY_ID": None,
+        "GOOGLE_PRIVATE_KEY": None,
+        "GOOGLE_CLIENT_EMAIL": None,
+        "GOOGLE_CLIENT_ID": None,
     }
 
     # Optional environment variables with defaults

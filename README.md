@@ -6,6 +6,7 @@ A Flask-based API for parsing and logging financial SMS messages to Google Sheet
 
 - Parse financial SMS messages to extract transaction details
 - Log parsed data to Google Sheets automatically
+- **Dynamic Google credentials generation** - no file uploads needed for deployment
 - API key authentication for secure access
 - Comprehensive test coverage
 - Real-time health monitoring
@@ -21,11 +22,19 @@ A Flask-based API for parsing and logging financial SMS messages to Google Sheet
    ```
 
 2. Update `.env` with your configuration:
+
    ```env
    SECRET_KEY=your-secure-secret-key
    API_KEY=your-secure-api-key-here
-   SHARED_WORKBOOK_ID=your-google-sheets-id
+   GSHEET_SHARED_WORKBOOK_ID=your-google-sheets-id
    EDITOR_EMAILS=your-email@example.com
+
+   # Google Service Account (for dynamic credentials)
+   GOOGLE_PROJECT_ID=your-project-id
+   GOOGLE_PRIVATE_KEY_ID=your-private-key-id
+   GOOGLE_PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\nYOUR_KEY\n-----END PRIVATE KEY-----\n"
+   GOOGLE_CLIENT_EMAIL=your-service-account@project.iam.gserviceaccount.com
+   GOOGLE_CLIENT_ID=your-client-id
    ```
 
 ### 2. Install Dependencies
@@ -90,10 +99,20 @@ The application uses environment variables for configuration. Key settings inclu
 
 - `API_KEY`: Required for API authentication
 - `SECRET_KEY`: Flask secret key for sessions
-- `SHARED_WORKBOOK_ID`: Google Sheets workbook ID
+- `GSHEET_SHARED_WORKBOOK_ID`: Google Sheets workbook ID
+- `GOOGLE_PROJECT_ID`, `GOOGLE_PRIVATE_KEY`, etc.: Google Service Account credentials
 - `EDITOR_EMAILS`: Comma-separated list of authorized editor emails
 - `DEBUG`: Enable/disable debug mode (default: True)
 - `LOG_LEVEL`: Logging level (default: INFO)
+
+### Google Credentials
+
+The app supports **two methods** for Google authentication:
+
+1. **Static file**: Place `google-credentials.json` in `credentials/` folder
+2. **Dynamic generation**: Set `GOOGLE_*` environment variables (recommended for deployment)
+
+See `DEPLOYMENT.md` for detailed deployment instructions.
 
 ## Security
 

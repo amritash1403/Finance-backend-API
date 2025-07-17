@@ -4,6 +4,7 @@ Contains paths, static data, and application settings.
 """
 
 import os
+import json
 from typing import List, Dict, Any
 from dotenv import load_dotenv
 
@@ -11,13 +12,78 @@ from dotenv import load_dotenv
 load_dotenv()
 
 
+def get_google_credentials_path():
+    """
+    Get the path to Google credentials file, creating it dynamically if needed.
+
+    This function checks if the credentials file exists. If not, it creates one
+    using environment variables. This allows deployment without uploading sensitive files.
+
+    Returns:
+        str: Path to the Google credentials JSON file
+
+    Raises:
+        ValueError: If required environment variables are missing
+    """
+    credentials_path = os.path.join(
+        os.path.dirname(__file__), "credentials", "google-credentials.json"
+    )
+
+    # If file exists, return the path
+    if os.path.exists(credentials_path):
+        return credentials_path
+
+    # Create credentials from environment variables
+    required_env_vars = [
+        "GOOGLE_PROJECT_ID",
+        "GOOGLE_PRIVATE_KEY_ID",
+        "GOOGLE_PRIVATE_KEY",
+        "GOOGLE_CLIENT_EMAIL",
+        "GOOGLE_CLIENT_ID",
+    ]
+
+    # Check if all required environment variables are present
+    missing_vars = [var for var in required_env_vars if not os.getenv(var)]
+    if missing_vars:
+        raise ValueError(
+            f"Missing required environment variables: {', '.join(missing_vars)}"
+        )
+
+    # Build credentials dictionary
+    credentials = {
+        "type": "service_account",
+        "project_id": os.getenv("GOOGLE_PROJECT_ID"),
+        "private_key_id": os.getenv("GOOGLE_PRIVATE_KEY_ID"),
+        "private_key": os.getenv("GOOGLE_PRIVATE_KEY"),
+        "client_email": os.getenv("GOOGLE_CLIENT_EMAIL"),
+        "client_id": os.getenv("GOOGLE_CLIENT_ID"),
+        "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+        "token_uri": "https://oauth2.googleapis.com/token",
+        "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+        "client_x509_cert_url": f"https://www.googleapis.com/robot/v1/metadata/x509/{os.getenv('GOOGLE_CLIENT_EMAIL').replace('@', '%40')}",
+        "universe_domain": "googleapis.com",
+    }
+
+    # Ensure credentials directory exists
+    credentials_dir = os.path.dirname(credentials_path)
+    os.makedirs(credentials_dir, exist_ok=True)
+
+    # Write credentials to file
+    with open(credentials_path, "w") as f:
+        json.dump(credentials, f, indent=2)
+
+    print(f"✅ Google credentials created dynamically at: {credentials_path}")
+    return credentials_path
+
+
 class Paths:
     """File paths configuration."""
 
-    # Google API credentials
-    GOOGLE_CREDENTIALS_PATH = os.path.join(
-        os.path.dirname(__file__), "credentials", "google-credentials.json"
-    )
+    # Google API credentials (dynamic generation)
+    @staticmethod
+    def get_google_credentials_path():
+        """Get Google credentials path, creating file from env vars if needed."""
+        return get_google_credentials_path()
 
     # Logs directory
     LOGS_DIR = os.path.join(os.path.dirname(__file__), "logs")
@@ -191,7 +257,7 @@ def create_directories():
     """Create necessary directories if they don't exist."""
     directories = [
         Paths.LOGS_DIR,
-        os.path.dirname(Paths.GOOGLE_CREDENTIALS_PATH),
+        os.path.join(os.path.dirname(__file__), "credentials"),
     ]
 
     for directory in directories:
