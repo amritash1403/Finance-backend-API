@@ -1,6 +1,8 @@
 .mypy_cache
 credentials\google-credentials.json
+logs/
 __pycache__
 sms_parser\__pycache__
 venv
 .env
+*.csv
