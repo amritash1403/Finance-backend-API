@@ -22,14 +22,6 @@ if not hasattr(sys, "real_prefix") and not (
     print("Please activate it with: .\\venv\\Scripts\\activate.ps1")
     print()
 
-# Check if Google credentials exist
-credentials_file = project_dir / "credentials" / "google-credentials.json"
-if not credentials_file.exists():
-    print("ERROR: Google credentials not found!")
-    print(f"Please create the file: {credentials_file}")
-    print("Copy from: credentials/google-credentials.json.example")
-    print()
-
 # Import and run the Flask app
 try:
     from app import app, AppConfig
@@ -41,11 +33,6 @@ try:
     print(f"Log Level: {AppConfig.LOG_LEVEL}")
     print("=" * 50)
     print("Starting server...")
-    print("Available endpoints:")
-    print("  GET  /health")
-    print("  POST /api/v1/log")
-    print("  POST /api/v1/test-parser")
-    print("  GET  /api/v1/sheets/{month-year}")
     print("=" * 50)
 
     # Create necessary directories
