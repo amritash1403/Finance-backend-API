@@ -26,8 +26,8 @@ echo "📁 Creating necessary directories..."
 mkdir -p logs
 mkdir -p credentials
 
-echo "🌐 Starting Gunicorn server..."
+echo "🌐 Starting Waitress server..."
 echo "================================================="
 
-# Run with Gunicorn
-exec gunicorn --config gunicorn.conf.py wsgi:application
+# Run with Waitress using the production script
+exec python production.py

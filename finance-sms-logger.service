@@ -1,0 +1,46 @@
+[Unit]
+Description=Finance SMS Logger Flask Application
+Documentation=https://github.com/your-org/finance-sms-logger
+After=network.target
+
+[Service]
+Type=exec
+User=www-data
+Group=www-data
+WorkingDirectory=/path/to/finance-sms-logger
+Environment=PATH=/path/to/finance-sms-logger/venv/bin
+
+# Environment variables (customize as needed)
+# Environment=API_KEY=your-api-key-here
+# Environment=GSHEET_SHARED_WORKBOOK_ID=your-workbook-id
+# Environment=GOOGLE_PROJECT_ID=your-project-id
+# Environment=LOG_LEVEL=INFO
+
+# Use the production script with systemd mode
+ExecStart=/path/to/finance-sms-logger/venv/bin/python production.py --mode systemd
+
+# Restart policy
+Restart=on-failure
+RestartSec=5
+StartLimitInterval=60s
+StartLimitBurst=3
+
+# Security settings
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+ReadWritePaths=/path/to/finance-sms-logger/logs
+ReadWritePaths=/path/to/finance-sms-logger/credentials
+
+# Process settings
+TimeoutStopSec=30
+KillMode=mixed
+KillSignal=SIGINT
+
+# Logging
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=finance-sms-logger
+
+[Install]
+WantedBy=multi-user.target
