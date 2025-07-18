@@ -38,9 +38,6 @@ def get_env_variable(key: str, default: str = None) -> str:
         The environment variable value or default
     """
     value = os.environ.get(key, default)
-    logger.info(
-        f"Fetching environment variable: {key}: {value[:50] if value else 'None'}"
-    )
     return value
 
 

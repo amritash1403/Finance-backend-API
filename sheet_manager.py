@@ -530,8 +530,8 @@ class SheetManager:
             # Check cache first (simple time-based caching)
             if sheet_name in self.monthly_spends_cache:
                 cached_data, cache_timestamp = self.monthly_spends_cache[sheet_name]
-                # Cache is valid for 5 minutes (300 seconds)
-                if time.time() - cache_timestamp < 300:
+                # Cache is valid for 2 minutes (120 seconds)
+                if time.time() - cache_timestamp < 120:
                     self.logger.info(f"Returning cached data for {sheet_name}")
                     return cached_data
 
