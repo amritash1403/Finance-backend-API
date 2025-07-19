@@ -4,27 +4,32 @@ This guide covers deploying the Finance SMS Logger application in production usi
 
 ## Quick Start
 
+The production deployment has been simplified to use only `production.py` with built-in configuration modes.
+
 ### Windows
 
 ```cmd
-# Option 1: PowerShell
-.\start_production.ps1
-
-# Option 2: Batch file
-start_production.bat
-
-# Option 3: Direct command
+# High-performance mode (recommended)
 python production.py --mode performance
+
+# Basic mode
+python production.py
+
+# Custom configuration
+python production.py --host 0.0.0.0 --port 8000 --threads 8
 ```
 
 ### Linux/Mac
 
 ```bash
-# Option 1: Shell script
-./start_production.sh
-
-# Option 2: Direct command
+# High-performance mode (recommended)
 python production.py --mode performance
+
+# Basic mode
+python production.py
+
+# Custom configuration
+python production.py --host 0.0.0.0 --port 8000 --threads 8
 ```
 
 ## Production Server Commands
@@ -113,50 +118,90 @@ WAITRESS_CONNECTION_LIMIT=1000
 
 ## Deployment Options
 
-### 1. Direct Deployment
+### 1. Direct Deployment (Recommended)
 
 ```bash
 # Install dependencies
 pip install -r requirements.txt
 
-# Run production server
+# Run production server with optimal settings
 python production.py --mode performance
 ```
 
-### 2. Systemd Service (Linux)
+### 2. Basic Deployment
 
 ```bash
-# Copy service file
-sudo cp finance-sms-logger.service /etc/systemd/system/
+# Install dependencies
+pip install -r requirements.txt
 
-# Edit paths in service file
-sudo nano /etc/systemd/system/finance-sms-logger.service
+# Run basic production server
+python production.py
+```
 
-# Enable and start service
+### 3. Custom Configuration
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Run with custom settings
+python production.py --host 0.0.0.0 --port 8000 --threads 8
+```
+
+### 4. Systemd Service (Linux)
+
+Create a systemd service file manually:
+
+```ini
+[Unit]
+Description=Finance SMS Logger
+After=network.target
+
+[Service]
+Type=simple
+User=your-user
+WorkingDirectory=/path/to/your/app
+Environment=PATH=/path/to/your/venv/bin
+ExecStart=/path/to/your/venv/bin/python production.py --mode systemd
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target
+```
+
+Then enable and start:
+
+```bash
 sudo systemctl daemon-reload
 sudo systemctl enable finance-sms-logger
 sudo systemctl start finance-sms-logger
-
-# Check status
 sudo systemctl status finance-sms-logger
 ```
 
-### 3. Docker Deployment
+### 5. Docker Deployment
+
+Create a simple Dockerfile:
 
 ```dockerfile
 FROM python:3.11-slim
 
 WORKDIR /app
 COPY . .
-
 RUN pip install -r requirements.txt
-RUN chmod +x docker-entrypoint.sh
 
 EXPOSE 5000
-ENTRYPOINT ["./docker-entrypoint.sh"]
+CMD ["python", "production.py", "--mode", "docker"]
 ```
 
-### 4. Reverse Proxy Setup (Nginx)
+Build and run:
+
+```bash
+docker build -t finance-sms-logger .
+docker run -p 5000:5000 --env-file .env finance-sms-logger
+```
+
+### 6. Reverse Proxy Setup (Nginx)
 
 ```nginx
 server {
@@ -210,12 +255,17 @@ curl http://localhost:5000/health
 
 ### Performance Monitoring
 
-```bash
-# Run performance tests
-python performance_monitor.py
+The `production.py` script includes built-in configuration validation and monitoring features:
 
-# Check server logs
-tail -f logs/waitress_*.log
+```bash
+# Run with configuration validation (default)
+python production.py --mode performance
+
+# Skip configuration checks if needed
+python production.py --mode performance --skip-checks
+
+# Check server status
+curl http://localhost:5000/health
 ```
 
 ### System Resources
