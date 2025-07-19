@@ -37,7 +37,9 @@ class SheetManager:
                 credentials_info, scopes=AppConfig.GOOGLE_SHEETS_SCOPES
             )
 
-            self.service = build("sheets", "v4", credentials=credentials)
+            self.service = build(
+                "sheets", "v4", credentials=credentials, cache_discovery=False
+            )
 
             self.logger.info("Google Sheets service initialized successfully")
 
