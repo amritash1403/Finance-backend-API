@@ -110,6 +110,7 @@ def health_check():
                 "status": "healthy",
                 "timestamp": datetime.now().isoformat(),
                 "version": AppConfig.API_VERSION,
+                "message": "Finance SMS Logger is running",
             }
         ),
         200,
@@ -304,6 +305,7 @@ def test_parser():
                             "parsed_data": transaction_data,
                             "is_valid_transaction": is_valid,
                             "original_text": text,
+                            "message": "SMS parsed successfully",
                         },
                     }
                 ),
@@ -412,7 +414,7 @@ def get_sheet_info(month_year: str):
     except BadRequest as e:
         logger.warning(f"Bad request in get_sheet_info: {e}")
         return (
-            jsonify({"success": False, "error": "Bad request", "message": str(e)}),
+            jsonify({"success": False, "error": str(e), "message": "Bad request"}),
             400,
         )
 
@@ -420,7 +422,7 @@ def get_sheet_info(month_year: str):
         logger.error(f"Unexpected error in get_sheet_info: {e}")
         return (
             jsonify(
-                {"success": False, "error": "Internal server error", "message": str(e)}
+                {"success": False, "error": str(e), "message": "Internal server error"}
             ),
             500,
         )
@@ -465,8 +467,8 @@ def get_monthly_spend_stats(month_year: str):
                 jsonify(
                     {
                         "success": False,
-                        "error": "Sheet not found",
-                        "message": stats["error"],
+                        "error": stats["error"],
+                        "message": "Sheet not found",
                     }
                 ),
                 404,
@@ -486,6 +488,7 @@ def get_monthly_spend_stats(month_year: str):
                 {
                     "success": True,
                     "data": response_data,
+                    "message": "Monthly spend statistics retrieved successfully",
                 }
             ),
             200,
@@ -494,14 +497,14 @@ def get_monthly_spend_stats(month_year: str):
     except BadRequest as e:
         logger.warning(f"Bad request in get_monthly_spend_stats_by_month: {e}")
         return (
-            jsonify({"success": False, "error": "Bad request", "message": str(e)}),
+            jsonify({"success": False, "error": str(e), "message": "Bad request"}),
             400,
         )
     except Exception as e:
         logger.error(f"Unexpected error in get_monthly_spend_stats_by_month: {e}")
         return (
             jsonify(
-                {"success": False, "error": "Internal server error", "message": str(e)}
+                {"success": False, "error": str(e), "message": "Internal server error"}
             ),
             500,
         )
