@@ -37,6 +37,11 @@ try:
 
     # Create necessary directories
     os.makedirs(AppConfig.LOGS_DIR, exist_ok=True)
+    app.run(
+        port=AppConfig.PORT,
+        debug=AppConfig.DEBUG,
+        threaded=True,
+    )
 
 except ImportError as e:
     print(f"Import error: {e}")

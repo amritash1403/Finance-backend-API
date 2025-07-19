@@ -104,12 +104,15 @@ def authenticate_api_request():
 @app.route("/health", methods=["GET"])
 def health_check():
     """Health check endpoint."""
-    return jsonify(
-        {
-            "status": "healthy",
-            "timestamp": datetime.now().isoformat(),
-            "version": AppConfig.API_VERSION,
-        }
+    return (
+        jsonify(
+            {
+                "status": "healthy",
+                "timestamp": datetime.now().isoformat(),
+                "version": AppConfig.API_VERSION,
+            }
+        ),
+        200,
     )
 
 
@@ -144,6 +147,15 @@ def log_sms_transaction():
         if not date_str:
             raise BadRequest("'date' field is required")
 
+        # Parse date first (before text validation)
+        try:
+            date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            print(f"Parsed date: {date}")
+        except ValueError:
+            raise BadRequest(
+                "Invalid date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)"
+            )
+
         # Validate text length
         if len(text) < AppConfig.MIN_SMS_LENGTH:
             raise BadRequest(
@@ -153,15 +165,6 @@ def log_sms_transaction():
         if len(text) > AppConfig.MAX_SMS_LENGTH:
             raise BadRequest(
                 f"SMS text too long (maximum {AppConfig.MAX_SMS_LENGTH} characters)"
-            )
-
-        # Parse date
-        try:
-            date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-            print(f"Parsed date: {date}")
-        except ValueError:
-            raise BadRequest(
-                "Invalid date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)"
             )
 
         # Parse SMS using sms_parser
@@ -175,8 +178,8 @@ def log_sms_transaction():
                 jsonify(
                     {
                         "success": False,
-                        "error": "Failed to parse SMS",
-                        "message": str(e),
+                        "error": str(e),
+                        "message": "Failed to parse SMS",
                     }
                 ),
                 500,
@@ -191,13 +194,12 @@ def log_sms_transaction():
             return (
                 jsonify(
                     {
-                        "success": False,
-                        "error": "Invalid transaction data",
+                        "success": True,
                         "message": "SMS does not contain valid transaction information",
                         "parsed_data": transaction_data,
                     }
                 ),
-                400,
+                200,
             )
 
         # Check if sheet manager is available
@@ -229,7 +231,7 @@ def log_sms_transaction():
                 },
             }
             logger.info(f"Transaction logged successfully for date: {date}")
-            return jsonify(response), 200
+            return jsonify(response), 201
         else:
             logger.error("Failed to insert transaction into Google Sheets")
             return (
@@ -246,7 +248,7 @@ def log_sms_transaction():
     except BadRequest as e:
         logger.warning(f"Bad request: {e}")
         return (
-            jsonify({"success": False, "error": "Bad request", "message": str(e)}),
+            jsonify({"success": False, "error": str(e), "message": "Bad request"}),
             400,
         )
 
@@ -254,13 +256,17 @@ def log_sms_transaction():
         logger.error(f"Unexpected error in log_sms_transaction: {e}")
         return (
             jsonify(
-                {"success": False, "error": "Internal server error", "message": str(e)}
+                {
+                    "success": False,
+                    "error": str(e),
+                    "message": "Internal server error",
+                }
             ),
             500,
         )
 
 
-@app.route(f"{AppConfig.API_PREFIX}/test-parser", methods=["POST"])
+@app.route(f"{AppConfig.API_PREFIX}/parse-sms", methods=["POST"])
 def test_parser():
     """
     Test SMS parser without saving to sheets.
@@ -307,14 +313,26 @@ def test_parser():
         except Exception as e:
             logger.error(f"Error in test parser: {e}")
             return (
-                jsonify({"success": False, "error": "Parser error", "message": str(e)}),
+                jsonify(
+                    {
+                        "success": False,
+                        "error": str(e),
+                        "message": "Parser error",
+                    }
+                ),
                 500,
             )
 
     except BadRequest as e:
         logger.warning(f"Bad request in test parser: {e}")
         return (
-            jsonify({"success": False, "error": "Bad request", "message": str(e)}),
+            jsonify(
+                {
+                    "success": False,
+                    "error": str(e),
+                    "message": "Bad request",
+                }
+            ),
             400,
         )
 
@@ -322,7 +340,7 @@ def test_parser():
         logger.error(f"Unexpected error in test_parser: {e}")
         return (
             jsonify(
-                {"success": False, "error": "Internal server error", "message": str(e)}
+                {"success": False, "error": str(e), "message": "Internal server error"}
             ),
             500,
         )
@@ -408,77 +426,8 @@ def get_sheet_info(month_year: str):
         )
 
 
-@app.route(f"{AppConfig.API_PREFIX}/stats", methods=["GET"])
-def get_monthly_spend_stats():
-    """
-    Get monthly spending statistics for the current month.
-
-    Returns spending totals grouped by transaction type.
-    """
-    try:
-        if not sheet_manager:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "Service unavailable",
-                        "message": "Google Sheets service is not available",
-                    }
-                ),
-                503,
-            )
-
-        # Get current month-year
-        current_date = datetime.now()
-        month = current_date.strftime("%B")
-        year = current_date.year
-
-        # Get spending statistics
-        stats = sheet_manager.get_month_spends(month, year)
-
-        if "error" in stats:
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "Sheet not found",
-                        "message": stats["error"],
-                    }
-                ),
-                404,
-            )
-
-        # Format response to match API structure
-        response_data = {
-            "month_year": stats["month"],
-            "total_spend": stats["total_spend"],
-            "transaction_count": stats["total_transactions"],
-            "categories": stats["categories"],
-            "generated_at": datetime.now().isoformat(),
-        }
-
-        return (
-            jsonify(
-                {
-                    "success": True,
-                    "data": response_data,
-                }
-            ),
-            200,
-        )
-
-    except Exception as e:
-        logger.error(f"Unexpected error in get_monthly_spend_stats: {e}")
-        return (
-            jsonify(
-                {"success": False, "error": "Internal server error", "message": str(e)}
-            ),
-            500,
-        )
-
-
 @app.route(f"{AppConfig.API_PREFIX}/stats/<string:month_year>", methods=["GET"])
-def get_monthly_spend_stats_by_month(month_year: str):
+def get_monthly_spend_stats(month_year: str):
     """
     Get monthly spending statistics for a specific month.
 
@@ -556,6 +505,16 @@ def get_monthly_spend_stats_by_month(month_year: str):
             ),
             500,
         )
+
+
+@app.errorhandler(BadRequest)
+def handle_bad_request(error):
+    """Handle BadRequest errors."""
+    logger.warning(f"Bad request: {error}")
+    return (
+        jsonify({"success": False, "error": "Bad request", "message": str(error)}),
+        400,
+    )
 
 
 @app.errorhandler(404)

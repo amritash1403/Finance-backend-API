@@ -45,11 +45,19 @@ pip install -r requirements.txt
 
 ### 3. Run the Application
 
+**Development Mode:**
+
 ```powershell
 python app.py
 ```
 
-The API will be available at `http://localhost:5000`
+**Production Mode:**
+
+```powershell
+python production.py
+```
+
+The API will be available at `http://localhost:5000` (development) or configured production host/port.
 
 ## Authentication
 
@@ -57,10 +65,10 @@ All API endpoints (except `/health`) require authentication using the `X-API-KEY
 
 ```bash
 # Valid request
-curl -X POST http://localhost:5000/api/v1/sms \
+curl -X POST http://localhost:5000/api/v1/log \
   -H "X-API-KEY: your-secure-api-key-here" \
   -H "Content-Type: application/json" \
-  -d '{"message": "Your SMS message here"}'
+  -d '{"text": "Your SMS message here"}'
 
 # Health check (no auth required)
 curl http://localhost:5000/health
@@ -68,10 +76,13 @@ curl http://localhost:5000/health
 
 ## API Endpoints
 
-| Endpoint      | Method | Auth Required | Description               |
-| ------------- | ------ | ------------- | ------------------------- |
-| `/health`     | GET    | No            | Health check endpoint     |
-| `/api/v1/sms` | POST   | Yes           | Parse and log SMS message |
+| Endpoint                      | Method | Auth Required | Description                     |
+| ----------------------------- | ------ | ------------- | ------------------------------- |
+| `/health`                     | GET    | No            | Health check endpoint           |
+| `/api/v1/log`                 | POST   | Yes           | Log SMS transaction             |
+| `/api/v1/parse-sms`           | POST   | Yes           | Test SMS parsing                |
+| `/api/v1/sheets/{month-year}` | GET    | Yes           | Get sheet information           |
+| `/api/v1/stats/{month-year}`  | GET    | Yes           | Get monthly spending statistics |
 
 See `endpoints.md` for detailed API documentation with examples.
 

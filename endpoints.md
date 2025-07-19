@@ -14,15 +14,11 @@ http://localhost:5000
 | ----------------------------- | ------ | --------------------------------- | -------------- |
 | `/health`                     | GET    | Health check                      | None           |
 | `/api/v1/log`                 | POST   | Log SMS transaction               | X-API-KEY      |
-| `/api/v1/test-parser`         | POST   | Test SMS parsing                  | X-API-KEY      |
+| `/api/v1/parse-sms`           | POST   | Test SMS parsing                  | X-API-KEY      |
 | `/api/v1/sheets/{month-year}` | GET    | Get sheet information             | X-API-KEY      |
-| `/api/v1/stats`               | GET    | Get current month spending stats  | X-API-KEY      |
 | `/api/v1/stats/{month-year}`  | GET    | Get specific month spending stats | X-API-KEY      |
 
-**Note**: The two statistics endpoints return different response formats:
-
-- `/api/v1/stats` (current month) returns `categories` with both `amount` and `count` for each category
-- `/api/v1/stats/{month-year}` (specific month) returns `category_breakdown` with only amounts
+**Note**: All API responses follow a consistent structure with `success`, `data`/`error`, and `message` fields.
 
 ## 🔐 Authentication
 
@@ -113,7 +109,7 @@ curl http://localhost:5000/health
 }
 ```
 
-**Success Response** (200):
+**Success Response** (201):
 
 ```json
 {
@@ -143,6 +139,16 @@ curl http://localhost:5000/health
 }
 ```
 
+**Success Response (Invalid Transaction)** (200):
+
+```json
+{
+  "success": true,
+  "message": "SMS does not contain valid transaction information",
+  "parsed_data": {...}
+}
+```
+
 **Error Responses**:
 
 **400 Bad Request**:
@@ -150,19 +156,18 @@ curl http://localhost:5000/health
 ```json
 {
   "success": false,
-  "error": "Bad request",
-  "message": "Invalid date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)"
+  "error": "'text' field is required",
+  "message": "Bad request"
 }
 ```
 
-**400 Invalid Transaction**:
+**500 Internal Server Error**:
 
 ```json
 {
   "success": false,
-  "error": "Invalid transaction data",
-  "message": "SMS does not contain valid transaction information",
-  "parsed_data": {...}
+  "error": "Database error",
+  "message": "Failed to insert transaction into Google Sheets"
 }
 ```
 
@@ -192,7 +197,7 @@ curl -X POST http://localhost:5000/api/v1/log \
 
 ### 3. Test SMS Parser
 
-**Endpoint**: `POST /api/v1/test-parser`
+**Endpoint**: `POST /api/v1/parse-sms`
 
 **Description**: Test SMS parsing without saving to sheets. Useful for debugging.
 
@@ -248,7 +253,7 @@ curl -X POST http://localhost:5000/api/v1/log \
 **Example**:
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/test-parser \
+curl -X POST http://localhost:5000/api/v1/parse-sms \
   -H "Content-Type: application/json" \
   -H "X-API-KEY: your-api-key-here" \
   -d '{
@@ -312,91 +317,7 @@ curl http://localhost:5000/api/v1/sheets/July-2025
 
 ---
 
-### 5. Get Current Month Spending Statistics
-
-**Endpoint**: `GET /api/v1/stats`
-
-**Description**: Get spending statistics for the current month.
-
-**Parameters**: None
-
-**Success Response** (200):
-
-```json
-{
-  "success": true,
-  "data": {
-    "month_year": "July-2025",
-    "total_spend": 108138.52,
-    "transaction_count": 45,
-    "categories": {
-      "Other": {
-        "amount": 50168.52,
-        "count": 15
-      },
-      "Cash Withdrawal": {
-        "amount": 26040.0,
-        "count": 8
-      },
-      "Subscription": {
-        "amount": 25938.0,
-        "count": 3
-      },
-      "Transportation": {
-        "amount": 2845.48,
-        "count": 7
-      },
-      "Shopping": {
-        "amount": 1458.59,
-        "count": 4
-      },
-      "Food & Dining": {
-        "amount": 1052.0,
-        "count": 6
-      },
-      "Utilities": {
-        "amount": 213.0,
-        "count": 1
-      },
-      "Investment": {
-        "amount": 88.0,
-        "count": 1
-      }
-    },
-    "generated_at": "2025-07-16T10:30:00.000Z"
-  }
-}
-```
-
-**Response Fields**:
-
-- `month_year`: The month and year in format "July-2025"
-- `total_spend`: Total amount spent in the month
-- `transaction_count`: Total number of transactions across all categories
-- `categories`: Object containing category data with amount and transaction count per category
-  - `amount`: Total amount spent in this category
-  - `count`: Number of transactions in this category
-- `generated_at`: Timestamp when the response was generated
-
-**Error Response** (404):
-
-```json
-{
-  "success": false,
-  "error": "Sheet not found",
-  "message": "No sheet found for July-2025"
-}
-```
-
-**Example**:
-
-```bash
-curl http://localhost:5000/api/v1/stats
-```
-
----
-
-### 6. Get Specific Month Spending Statistics
+### 5. Get Monthly Spending Statistics
 
 **Endpoint**: `GET /api/v1/stats/{month-year}`
 
@@ -483,6 +404,16 @@ curl http://localhost:5000/api/v1/stats
   "success": false,
   "error": "Sheet not found",
   "message": "No sheet found for June-2025"
+}
+```
+
+**503 Service Unavailable**:
+
+```json
+{
+  "success": false,
+  "error": "Service unavailable",
+  "message": "Google Sheets service is not available"
 }
 ```
 
@@ -616,10 +547,9 @@ def get_spending_stats(api_key, month_year=None):
 ```bash
 # Test all endpoints
 curl http://localhost:5000/health
-curl -X POST http://localhost:5000/api/v1/test-parser -H "Content-Type: application/json" -H "X-API-KEY: your-api-key-here" -d '{"text": "Test SMS"}'
+curl -X POST http://localhost:5000/api/v1/parse-sms -H "Content-Type: application/json" -H "X-API-KEY: your-api-key-here" -d '{"text": "Test SMS"}'
 curl -X POST http://localhost:5000/api/v1/log -H "Content-Type: application/json" -H "X-API-KEY: your-api-key-here" -d '{"text": "Test SMS", "date": "2025-07-14T10:30:00"}'
 curl -H "X-API-KEY: your-api-key-here" http://localhost:5000/api/v1/sheets/July-2025
-curl -H "X-API-KEY: your-api-key-here" http://localhost:5000/api/v1/stats
 curl -H "X-API-KEY: your-api-key-here" http://localhost:5000/api/v1/stats/July-2025
 ```
 

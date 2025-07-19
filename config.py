@@ -196,6 +196,7 @@ class AppConfig:
         "SECRET_KEY", "your-secret-key-here-change-in-production"
     )
     DEBUG = get_env_variable("DEBUG", "True").lower() == "true"
+    PORT = int(get_env_variable("PORT", "5000"))
 
     # API settings (mostly constants, version can be overridden)
     API_VERSION = get_env_variable("API_VERSION", "v1")
