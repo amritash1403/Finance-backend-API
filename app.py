@@ -10,6 +10,7 @@ from typing import Dict, Any, Optional
 
 from flask import Flask, request, jsonify
 import psutil
+import objgraph
 from werkzeug.exceptions import BadRequest
 
 from config import AppConfig, ValidationRules
@@ -50,6 +51,16 @@ def log_memory_usage(tag=""):
     logger.info(f"[MEMORY] {tag} - {mem_in_mb:.2f} MB")
 
 
+def log_objects(tag=""):
+    """
+    Log the number of objects in memory for debugging.
+    """
+    sheets_clients = len(objgraph.by_type("Resource"))
+    logger.info(f"[OBJGRAPH] Sheets API Resource objects: {sheets_clients}")
+    most_common = objgraph.most_common_types(limit=10)
+    logger.info(f"[OBJECTS] {tag} - Most common types: {most_common}")
+
+
 @app.before_request
 def authenticate_api_request():
     """
@@ -59,6 +70,7 @@ def authenticate_api_request():
     # Only check authentication for API routes
     # TODO: Temporary logging for memory usage
     log_memory_usage("Before Request")
+    log_objects("Before Request")
     if request.path.startswith(AppConfig.API_PREFIX):
         # Check if API key is configured
         if not AppConfig.API_KEY:
@@ -116,6 +128,7 @@ def authenticate_api_request():
 @app.after_request
 def after_request(response):
     log_memory_usage("After Request")
+    log_objects("After Request")
     return response
 
 
