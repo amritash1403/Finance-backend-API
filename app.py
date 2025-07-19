@@ -9,6 +9,7 @@ from datetime import datetime
 from typing import Dict, Any, Optional
 
 from flask import Flask, request, jsonify
+import psutil
 from werkzeug.exceptions import BadRequest
 
 from config import AppConfig, ValidationRules
@@ -41,6 +42,14 @@ except Exception as e:
     sheet_manager = None
 
 
+# TODO: Temporary function to log memory usage
+# This can be removed or modified later based on performance needs.
+def log_memory_usage(tag=""):
+    process = psutil.Process(os.getpid())
+    mem_in_mb = process.memory_info().rss / (1024 * 1024)  # Resident Set Size in MB
+    logger.info(f"[MEMORY] {tag} - {mem_in_mb:.2f} MB")
+
+
 @app.before_request
 def authenticate_api_request():
     """
@@ -48,6 +57,8 @@ def authenticate_api_request():
     Only applies to routes starting with config.API_PREFIX.
     """
     # Only check authentication for API routes
+    # TODO: Temporary logging for memory usage
+    log_memory_usage("Before Request")
     if request.path.startswith(AppConfig.API_PREFIX):
         # Check if API key is configured
         if not AppConfig.API_KEY:
@@ -99,6 +110,13 @@ def authenticate_api_request():
             )
 
         logger.debug(f"Valid API key provided for {request.path}")
+
+
+# TODO: Temporary logging for memory usage
+@app.after_request
+def after_request(response):
+    log_memory_usage("After Request")
+    return response
 
 
 @app.route("/health", methods=["GET"])

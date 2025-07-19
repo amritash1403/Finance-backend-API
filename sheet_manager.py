@@ -56,6 +56,14 @@ class SheetManager:
             self.logger.error(f"Error initializing Google services: {e}")
             return  # Don't raise, just return without initializing services
 
+    def _clean_up_cache(self):
+        """Clean up the monthly spends cache."""
+        for key, value in list(self.monthly_spends_cache.items()):
+            # Remove entries older than 2 minutes
+            if time.time() - value[1] > 120:
+                del self.monthly_spends_cache[key]
+                self.logger.info(f"Removed stale cache entry for {key}")
+
     def _get_month_year_key(self, date: datetime) -> str:
         """Get month-year key for sheet mapping."""
         return f"{date.strftime('%B')}-{date.year}"
@@ -577,6 +585,10 @@ class SheetManager:
                 "total_transactions": total_transaction_count,
                 "categories": spends,
             }
+
+            # Cleanup cache before adding new entry
+            self._clean_up_cache()
+
             # Cache the result with current timestamp
             self.monthly_spends_cache[sheet_name] = (spend_data, time.time())
             return spend_data
