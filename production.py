@@ -191,6 +191,19 @@ def run_performance_mode():
     )
 
 
+def run_light_mode():
+    """Run with lightweight configuration."""
+    print("💡 Running in light mode")
+    run_waitress_server(
+        host="0.0.0.0",
+        port=5000,
+        threads=2,
+        connection_limit=500,
+        cleanup_interval=60,
+        channel_timeout=120,
+    )
+
+
 def run_basic():
     """Run with basic configuration."""
     print("🔧 Running in basic mode")
@@ -205,6 +218,7 @@ def main():
         epilog="""
 Examples:
   python production.py                    # Basic production server
+  python production.py --mode light       # Lightweight mode (no heavy optimizations)
   python production.py --mode performance # High-performance mode
   python production.py --mode systemd     # Systemd-friendly mode
   python production.py --mode docker      # Docker-friendly mode
@@ -214,7 +228,7 @@ Examples:
 
     parser.add_argument(
         "--mode",
-        choices=["basic", "performance", "systemd", "docker"],
+        choices=["basic", "light", "performance", "systemd", "docker"],
         default="basic",
         help="Server configuration mode",
     )
@@ -265,6 +279,8 @@ Examples:
             run_with_docker()
         elif args.mode == "performance":
             run_performance_mode()
+        elif args.mode == "light":
+            run_light_mode()
         else:
             # Basic mode or custom configuration
             run_waitress_server(host=args.host, port=args.port, threads=args.threads)
