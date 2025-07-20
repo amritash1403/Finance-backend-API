@@ -57,8 +57,6 @@ def log_objects(tag=""):
     """
     sheets_clients = len(objgraph.by_type("Resource"))
     logger.info(f"[OBJGRAPH] Sheets API Resource objects: {sheets_clients}")
-    most_common = objgraph.most_common_types(limit=10)
-    logger.info(f"[OBJECTS] {tag} - Most common types: {most_common}")
 
 
 @app.before_request
@@ -71,6 +69,7 @@ def authenticate_api_request():
     # TODO: Temporary logging for memory usage
     log_memory_usage("Before Request")
     log_objects("Before Request")
+    logger.debug(f"Request path: {request.path}")
     if request.path.startswith(AppConfig.API_PREFIX):
         # Check if API key is configured
         if not AppConfig.API_KEY:
@@ -514,7 +513,7 @@ def get_monthly_spend_stats(month_year: str):
                     {
                         "success": True,
                         "data": {
-                            "month": month_year,
+                            "month_year": month_year,
                             "total_spend": 0,
                             "total_transactions": 0,
                             "categories": {},

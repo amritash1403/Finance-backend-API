@@ -5,6 +5,7 @@ Manages monthly sheet creation within a shared workbook, formatting, and data in
 
 import os
 import logging
+import psutil
 from datetime import datetime
 import time
 from typing import Dict, List, Optional, Any, Tuple
@@ -58,13 +59,16 @@ class SheetManager:
             self.logger.error(f"Error initializing Google services: {e}")
             return  # Don't raise, just return without initializing services
 
-    def _clean_up_cache(self):
-        """Clean up the monthly spends cache."""
-        for key, value in list(self.monthly_spends_cache.items()):
-            # Remove entries older than 2 minutes
-            if time.time() - value[1] > 120:
-                del self.monthly_spends_cache[key]
-                self.logger.info(f"Removed stale cache entry for {key}")
+    def _clean_up(self):
+        """Clean up the memory by clearing cache and reinitializing services if needed."""
+        process = psutil.Process(os.getpid())
+        mem_in_mb = process.memory_info().rss / (1024 * 1024)
+        if mem_in_mb > AppConfig.MEMORY_LIMIT_MB:
+            self.monthly_spends_cache.clear()
+            self._initialize_services()  # Reinitialize services to free up memory
+            self.logger.info(
+                f"Memory limit exceeded ({mem_in_mb:.2f} MB). Cleared cache and reinitialized services."
+            )
 
     def _get_month_year_key(self, date: datetime) -> str:
         """Get month-year key for sheet mapping."""
@@ -376,6 +380,7 @@ class SheetManager:
         self, transaction_data: Dict[str, Any], date: datetime
     ) -> bool:
         """Insert transaction data into the appropriate monthly sheet."""
+        self._clean_up()  # Clean up cache if memory limit exceeded
         try:
             # Check if services are initialized
             if not self.service:
@@ -534,6 +539,8 @@ class SheetManager:
 
     def get_month_spends(self, month: str, year: int) -> Dict[str, Any]:
         """Get total spends for a specific month and year."""
+        # Cleanup cache before adding new entry
+        self._clean_up()
         try:
             sheet_name = AppConfig.SHEET_NAME_FORMAT.format(month=month, year=year)
 
@@ -587,9 +594,6 @@ class SheetManager:
                 "total_transactions": total_transaction_count,
                 "categories": spends,
             }
-
-            # Cleanup cache before adding new entry
-            self._clean_up_cache()
 
             # Cache the result with current timestamp
             self.monthly_spends_cache[sheet_name] = (spend_data, time.time())

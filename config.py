@@ -220,6 +220,9 @@ class AppConfig:
     MAX_SMS_LENGTH = int(get_env_variable("MAX_SMS_LENGTH", "1000"))
     MIN_SMS_LENGTH = int(get_env_variable("MIN_SMS_LENGTH", "10"))
 
+    # Memory limit for SheetManager cache (in MB)
+    MEMORY_LIMIT_MB = int(get_env_variable("MEMORY_LIMIT_MB", "300"))
+
 
 class ValidationRules:
     """Validation rules for incoming data."""
