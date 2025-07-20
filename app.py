@@ -69,7 +69,8 @@ def authenticate_api_request():
     # TODO: Temporary logging for memory usage
     log_memory_usage("Before Request")
     log_objects("Before Request")
-    logger.debug(f"Request path: {request.path}")
+    logger.info(f"Request path: {request.path}")
+
     if request.path.startswith(AppConfig.API_PREFIX):
         # Check if API key is configured
         if not AppConfig.API_KEY:
