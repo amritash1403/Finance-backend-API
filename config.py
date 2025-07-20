@@ -107,7 +107,13 @@ class TransactionTypes:
     """Transaction types with associated colors for conditional formatting."""
 
     TYPES_WITH_COLORS = {
-        "Food & Dining": "#FF6B6B",  # Red
+        "Food Order": "#FF6B6B",  # Red
+        "Office Lunch": "#F7B7A3",  # Light Red
+        "Dining Out": "#FF9F43",  # Orange
+        "Groceries": "#F8C471",  # Light Orange
+        "Retail": "#F5B041",  # Light Yellow
+        "Bill Payment": "#BB8FCE",  # Light Purple
+        "Subscription": "#85C1E9",  # Sky Blue
         "Transportation": "#4ECDC4",  # Teal
         "Shopping": "#45B7D1",  # Blue
         "Entertainment": "#96CEB4",  # Green
@@ -116,12 +122,8 @@ class TransactionTypes:
         "Education": "#98D8C8",  # Mint
         "Investment": "#F7DC6F",  # Light Yellow
         "Transfer": "#AED6F1",  # Light Blue
-        "Other": "#D5DBDB",  # Light Gray
-        "Salary": "#58D68D",  # Light Green
-        "Refund": "#F8C471",  # Orange
         "Cash Withdrawal": "#F1948A",  # Light Red
-        "Bill Payment": "#BB8FCE",  # Light Purple
-        "Subscription": "#85C1E9",  # Sky Blue
+        "Other": "#D5DBDB",  # Light Gray
     }
 
     @classmethod
