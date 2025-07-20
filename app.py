@@ -508,6 +508,23 @@ def get_monthly_spend_stats(month_year: str):
                 404,
             )
 
+        if "empty" in stats:
+            return (
+                jsonify(
+                    {
+                        "success": True,
+                        "data": {
+                            "month": month_year,
+                            "total_spend": 0,
+                            "total_transactions": 0,
+                            "categories": {},
+                        },
+                        "message": "No transactions found for this month",
+                    }
+                ),
+                200,
+            )
+
         # Format response to match API structure
         response_data = {
             "month_year": stats["month"],

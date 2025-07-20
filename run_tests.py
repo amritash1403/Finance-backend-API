@@ -824,7 +824,7 @@ class ComprehensiveTestSuite:
             )
             if response.status_code == 400:
                 result = response.json()
-                if "Invalid month-year format" in result.get("message", ""):
+                if "Invalid month-year format" in result.get("error", ""):
                     print("✅ Invalid month-year format correctly handled")
                     self.test_results["extended"]["passed"] += 1
                 else:
@@ -934,16 +934,22 @@ class ComprehensiveTestSuite:
             response = requests.get(f"{self.base_url}/health", timeout=5)
             if response.status_code == 200:
                 result = response.json()
-                required_fields = ["status", "timestamp", "version"]
-                if all(field in result for field in required_fields):
-                    print("✅ Health endpoint has correct format")
-                    print(f"   Status: {result['status']}")
-                    print(f"   Version: {result['version']}")
-                    self.test_results["extended"]["passed"] += 1
+                # Check if response has the expected structure
+                if "data" in result:
+                    data = result["data"]
+                    required_fields = ["status", "timestamp", "version"]
+                    if all(field in data for field in required_fields):
+                        print("✅ Health endpoint has correct format")
+                        print(f"   Status: {data['status']}")
+                        print(f"   Version: {data['version']}")
+                        self.test_results["extended"]["passed"] += 1
+                    else:
+                        print(f"❌ Missing fields in health response data: {data}")
+                        print(f"   Expected fields: {required_fields}")
+                        print(f"   Actual fields: {list(data.keys())}")
+                        self.test_results["extended"]["failed"] += 1
                 else:
-                    print(f"❌ Missing fields in health response: {result}")
-                    print(f"   Expected fields: {required_fields}")
-                    print(f"   Actual fields: {list(result.keys())}")
+                    print(f"❌ Health response missing 'data' field: {result}")
                     self.test_results["extended"]["failed"] += 1
             else:
                 print(f"❌ Health endpoint failed: {response.status_code}")

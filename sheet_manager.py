@@ -546,7 +546,7 @@ class SheetManager:
                     return cached_data
 
             if not self._sheet_exists(sheet_name):
-                return {"error": f"Sheet for {sheet_name} does not exist."}
+                return {"empty": f"Sheet for {sheet_name} does not exist."}
 
             # Read data from the sheet
             range_name = f"{sheet_name}!A2:{chr(64 + len(SheetConfig.HEADER_ROW))}"  # Skip header row
