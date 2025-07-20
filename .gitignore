@@ -5,4 +5,5 @@ __pycache__
 sms_parser\__pycache__
 venv
 .env
+.vscode/
 *.csv

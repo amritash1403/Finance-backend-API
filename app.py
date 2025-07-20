@@ -138,10 +138,13 @@ def health_check():
     return (
         jsonify(
             {
-                "status": "healthy",
-                "timestamp": datetime.now().isoformat(),
-                "version": AppConfig.API_VERSION,
+                "success": True,
                 "message": "Finance SMS Logger is running",
+                "data": {
+                    "status": "healthy",
+                    "timestamp": datetime.now().isoformat(),
+                    "version": AppConfig.API_VERSION,
+                },
             }
         ),
         200,
