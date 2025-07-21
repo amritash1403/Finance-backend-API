@@ -27,6 +27,9 @@ class SheetManager:
 
         self.monthly_spends_cache = {}  # Cache for monthly spends data
         # {sheet_name: (data, timestamp)}
+        
+        self.transactions_cache = {}  # Cache for transaction data by sheet
+        # {sheet_name: (transactions_list, timestamp)}
 
     def _initialize_services(self):
         """Initialize Google Sheets API service."""
@@ -65,6 +68,7 @@ class SheetManager:
         mem_in_mb = process.memory_info().rss / (1024 * 1024)
         if mem_in_mb > AppConfig.MEMORY_LIMIT_MB:
             self.monthly_spends_cache.clear()
+            self.transactions_cache.clear()
             self._initialize_services()  # Reinitialize services to free up memory
             self.logger.info(
                 f"Memory limit exceeded ({mem_in_mb:.2f} MB). Cleared cache and reinitialized services."
@@ -536,6 +540,209 @@ class SheetManager:
         except Exception as e:
             self.logger.error(f"Error getting sheet statistics: {e}")
             return {"error": str(e)}
+
+    def get_transactions_by_date(self, date: datetime) -> List[Dict[str, Any]]:
+        """
+        Fetch all rows from the sheet corresponding to the month of the given date.
+        Filter rows matching the given date in column A (Date column).
+        Return as list of dictionaries with keys as per SheetConfig.HEADER_ROW.
+        """
+        self._clean_up()  # Clean up cache if memory limit exceeded
+        try:
+            sheet_name = self._generate_sheet_name(date)
+            date_str = date.strftime("%Y-%m-%d")
+            
+            # Check if sheet exists
+            if not self._sheet_exists(sheet_name):
+                self.logger.warning(f"Sheet '{sheet_name}' does not exist")
+                return []
+
+            # Check cache first (valid for 1 minute)
+            cache_key = f"{sheet_name}_{date_str}"
+            if cache_key in self.transactions_cache:
+                cached_data, cache_timestamp = self.transactions_cache[cache_key]
+                if time.time() - cache_timestamp < 60:  # 1 minute cache
+                    self.logger.info(f"Returning cached transactions for {cache_key}")
+                    return cached_data
+                
+            self.logger
+
+            # Read data from the sheet (skip header row)
+            range_name = f"{sheet_name}!A2:{chr(ord('A') + len(SheetConfig.HEADER_ROW) - 1)}"
+            result = (
+                self.service.spreadsheets()
+                .values()
+                .get(spreadsheetId=self.shared_workbook_id, range=range_name)
+                .execute()
+            )
+
+            values = result.get("values", [])
+            matching_transactions = []
+
+            for row_index, row in enumerate(values, start=2):  # Start from row 2 (1-based)
+                # Ensure row has enough columns
+                while len(row) < len(SheetConfig.HEADER_ROW):
+                    row.append("")
+
+                # Check if date matches
+                row_date = row[0] if row else ""
+                if row_date == date_str:
+                    # Create transaction dictionary
+                    transaction = {}
+                    for col_index, header in enumerate(SheetConfig.HEADER_ROW):
+                        transaction[header] = row[col_index] if col_index < len(row) else ""
+                    
+                    # Add row index for reference (1-based for Google Sheets)
+                    transaction["_row_index"] = row_index
+                    matching_transactions.append(transaction)
+
+            # Cache the result
+            self.transactions_cache[cache_key] = (matching_transactions, time.time())
+            
+            self.logger.info(f"Found {len(matching_transactions)} transactions for date {date_str} in sheet {sheet_name}")
+            return matching_transactions
+
+        except Exception as e:
+            self.logger.error(f"Error getting transactions by date: {e}")
+            return []
+
+    def update_transaction_fields(self, sheet_name: str, row_index: int, field_updates: Dict[str, Any]) -> bool:
+        """
+        Update multiple fields in the given row (row_index, 1-based).
+        field_updates is a dictionary where:
+        - Key = Field name (from SheetConfig.HEADER_ROW)
+        - Value = New value to be written
+        """
+        try:
+            if not self.service:
+                self.logger.error("Google services not initialized")
+                return False
+
+            # Check if sheet exists
+            if not self._sheet_exists(sheet_name):
+                self.logger.error(f"Sheet '{sheet_name}' does not exist")
+                return False
+
+            # Validate row_index
+            if row_index < 2:  # Header is row 1, so data starts from row 2
+                self.logger.error(f"Invalid row index {row_index}. Must be >= 2")
+                return False
+
+            # Prepare update data
+            update_data = []
+            for field_name, new_value in field_updates.items():
+                try:
+                    # Get column letter for the field
+                    col_letter = SheetConfig.get_column_letter(field_name)
+                    range_name = f"{sheet_name}!{col_letter}{row_index}"
+                    
+                    update_data.append({
+                        "range": range_name,
+                        "values": [[str(new_value)]]
+                    })
+                    
+                    self.logger.info(f"Preparing update for {field_name} -> {new_value} at {range_name}")
+                    
+                except ValueError as e:
+                    self.logger.error(f"Invalid field name '{field_name}': {e}")
+                    continue
+
+            if not update_data:
+                self.logger.warning("No valid field updates to perform")
+                return False
+
+            # Perform batch update in a single API call
+            body = {
+                "valueInputOption": "USER_ENTERED",  # Allow formulas
+                "data": update_data
+            }
+
+            result = self.service.spreadsheets().values().batchUpdate(
+                spreadsheetId=self.shared_workbook_id,
+                body=body
+            ).execute()
+
+            # Log successful updates
+            updated_cells = result.get("totalUpdatedCells", 0)
+            self.logger.info(f"Successfully updated {updated_cells} cells in row {row_index} of sheet '{sheet_name}'")
+            
+            # Invalidate related cache entries
+            self._invalidate_sheet_cache(sheet_name)
+            
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error updating transaction fields: {e}")
+            return False
+
+    def delete_transaction_row(self, sheet_name: str, row_index: int) -> bool:
+        """
+        Delete the entire row (row_index) from the given sheet_name.
+        Adjusts Google Sheets accordingly (deletion shifts other rows up).
+        """
+        try:
+            if not self.service:
+                self.logger.error("Google services not initialized")
+                return False
+
+            # Check if sheet exists
+            if not self._sheet_exists(sheet_name):
+                self.logger.error(f"Sheet '{sheet_name}' does not exist")
+                return False
+
+            # Validate row_index
+            if row_index < 2:  # Header is row 1, so data starts from row 2
+                self.logger.error(f"Invalid row index {row_index}. Must be >= 2")
+                return False
+
+            # Get sheet ID
+            sheet_id = self._get_sheet_id_by_name(self.shared_workbook_id, sheet_name)
+
+            # Prepare delete request
+            requests = [{
+                "deleteDimension": {
+                    "range": {
+                        "sheetId": sheet_id,
+                        "dimension": "ROWS",
+                        "startIndex": row_index - 1,  # Convert to 0-based index
+                        "endIndex": row_index  # End index is exclusive
+                    }
+                }
+            }]
+
+            # Execute the deletion
+            self.service.spreadsheets().batchUpdate(
+                spreadsheetId=self.shared_workbook_id,
+                body={"requests": requests}
+            ).execute()
+
+            self.logger.info(f"Successfully deleted row {row_index} from sheet '{sheet_name}'")
+            
+            # Invalidate related cache entries
+            self._invalidate_sheet_cache(sheet_name)
+            
+            return True
+
+        except Exception as e:
+            self.logger.error(f"Error deleting transaction row: {e}")
+            return False
+
+    def _invalidate_sheet_cache(self, sheet_name: str):
+        """Invalidate cache entries related to a specific sheet."""
+        try:
+            # Remove monthly spends cache for this sheet
+            if sheet_name in self.monthly_spends_cache:
+                del self.monthly_spends_cache[sheet_name]
+                self.logger.debug(f"Invalidated monthly spends cache for {sheet_name}")
+
+            # Remove transaction cache entries for this sheet
+            keys_to_remove = [key for key in self.transactions_cache.keys() if key.startswith(sheet_name)]
+            for key in keys_to_remove:
+                del self.transactions_cache[key]
+                self.logger.debug(f"Invalidated transaction cache for {key}")
+
+        except Exception as e:
+            self.logger.error(f"Error invalidating cache: {e}")
 
     def get_month_spends(self, month: str, year: int) -> Dict[str, Any]:
         """Get total spends for a specific month and year."""
