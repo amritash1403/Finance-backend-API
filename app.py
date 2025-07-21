@@ -151,156 +151,6 @@ def health_check():
     )
 
 
-@app.route(f"{AppConfig.API_PREFIX}/log", methods=["POST"])
-def log_sms_transaction():
-    """
-    Log SMS transaction to Google Sheets.
-
-    Expected JSON payload:
-    {
-        "text": "SMS text content",
-        "date": "2025-07-14T10:30:00"  # ISO format
-    }
-    """
-    try:
-        # Validate request
-        if not request.is_json:
-            raise BadRequest("Request must be JSON")
-
-        data = request.get_json()
-
-        # Validate required fields
-        if not data:
-            raise BadRequest("Request body is empty")
-
-        text = data.get("text")
-        date_str = data.get("date")
-
-        if not text:
-            raise BadRequest("'text' field is required")
-
-        if not date_str:
-            raise BadRequest("'date' field is required")
-
-        # Parse date first (before text validation)
-        try:
-            date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
-            print(f"Parsed date: {date}")
-        except ValueError:
-            raise BadRequest(
-                "Invalid date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)"
-            )
-
-        # Validate text length
-        if len(text) < AppConfig.MIN_SMS_LENGTH:
-            raise BadRequest(
-                f"SMS text too short (minimum {AppConfig.MIN_SMS_LENGTH} characters)"
-            )
-
-        if len(text) > AppConfig.MAX_SMS_LENGTH:
-            raise BadRequest(
-                f"SMS text too long (maximum {AppConfig.MAX_SMS_LENGTH} characters)"
-            )
-
-        # Parse SMS using sms_parser
-        logger.info(f"Parsing SMS: {text[:50]}...")
-
-        try:
-            transaction_info = get_transaction_info(text)
-        except Exception as e:
-            logger.error(f"Error parsing SMS: {e}")
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": str(e),
-                        "message": "Failed to parse SMS",
-                    }
-                ),
-                500,
-            )
-
-        # Convert transaction info to dict
-        transaction_data = transaction_info.to_dict() if transaction_info else {}
-
-        # Validate parsed transaction
-        if not ValidationRules.is_valid_transaction(transaction_data, text):
-            logger.warning(f"Invalid transaction data from SMS: {text[:50]}...")
-            return (
-                jsonify(
-                    {
-                        "success": True,
-                        "message": "SMS does not contain valid transaction information",
-                        "parsed_data": transaction_data,
-                    }
-                ),
-                200,
-            )
-
-        # Check if sheet manager is available
-        if not sheet_manager:
-            logger.error("Sheet Manager not initialized")
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "Service unavailable",
-                        "message": "Google Sheets service is not available",
-                    }
-                ),
-                503,
-            )
-
-        # Insert into Google Sheets
-        success = sheet_manager.insert_transaction_data(transaction_data, date)
-
-        if success:
-            sheet_url = sheet_manager.get_sheet_url(date)
-            response = {
-                "success": True,
-                "message": "Transaction logged successfully",
-                "data": {
-                    "transaction_data": transaction_data,
-                    "date": date.isoformat(),
-                    "sheet_url": sheet_url,
-                },
-            }
-            logger.info(f"Transaction logged successfully for date: {date}")
-            return jsonify(response), 201
-        else:
-            logger.error("Failed to insert transaction into Google Sheets")
-            return (
-                jsonify(
-                    {
-                        "success": False,
-                        "error": "Database error",
-                        "message": "Failed to insert transaction into Google Sheets",
-                    }
-                ),
-                500,
-            )
-
-    except BadRequest as e:
-        logger.warning(f"Bad request: {e}")
-        return (
-            jsonify({"success": False, "error": str(e), "message": "Bad request"}),
-            400,
-        )
-
-    except Exception as e:
-        logger.error(f"Unexpected error in log_sms_transaction: {e}")
-        return (
-            jsonify(
-                {
-                    "success": False,
-                    "error": str(e),
-                    "message": "Internal server error",
-                }
-            ),
-            500,
-        )
-
-
 @app.route(f"{AppConfig.API_PREFIX}/parse-sms", methods=["POST"])
 def test_parser():
     """
@@ -553,6 +403,455 @@ def get_monthly_spend_stats(month_year: str):
         )
     except Exception as e:
         logger.error(f"Unexpected error in get_monthly_spend_stats_by_month: {e}")
+        return (
+            jsonify(
+                {"success": False, "error": str(e), "message": "Internal server error"}
+            ),
+            500,
+        )
+
+
+@app.route(f"{AppConfig.API_PREFIX}/transactions", methods=["POST"])
+def log_sms_transaction():
+    """
+    Log SMS transaction to Google Sheets.
+
+    Expected JSON payload:
+    {
+        "text": "SMS text content",
+        "date": "2025-07-14T10:30:00"  # ISO format
+    }
+    """
+    try:
+        # Validate request
+        if not request.is_json:
+            raise BadRequest("Request must be JSON")
+
+        data = request.get_json()
+
+        # Validate required fields
+        if not data:
+            raise BadRequest("Request body is empty")
+
+        text = data.get("text")
+        date_str = data.get("date")
+
+        if not text:
+            raise BadRequest("'text' field is required")
+
+        if not date_str:
+            raise BadRequest("'date' field is required")
+
+        # Parse date first (before text validation)
+        try:
+            date = datetime.fromisoformat(date_str.replace("Z", "+00:00"))
+            print(f"Parsed date: {date}")
+        except ValueError:
+            raise BadRequest(
+                "Invalid date format. Use ISO format (YYYY-MM-DDTHH:MM:SS)"
+            )
+
+        # Validate text length
+        if len(text) < AppConfig.MIN_SMS_LENGTH:
+            raise BadRequest(
+                f"SMS text too short (minimum {AppConfig.MIN_SMS_LENGTH} characters)"
+            )
+
+        if len(text) > AppConfig.MAX_SMS_LENGTH:
+            raise BadRequest(
+                f"SMS text too long (maximum {AppConfig.MAX_SMS_LENGTH} characters)"
+            )
+
+        # Parse SMS using sms_parser
+        logger.info(f"Parsing SMS: {text[:50]}...")
+
+        try:
+            transaction_info = get_transaction_info(text)
+        except Exception as e:
+            logger.error(f"Error parsing SMS: {e}")
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": str(e),
+                        "message": "Failed to parse SMS",
+                    }
+                ),
+                500,
+            )
+
+        # Convert transaction info to dict
+        transaction_data = transaction_info.to_dict() if transaction_info else {}
+
+        # Validate parsed transaction
+        if not ValidationRules.is_valid_transaction(transaction_data, text):
+            logger.warning(f"Invalid transaction data from SMS: {text[:50]}...")
+            return (
+                jsonify(
+                    {
+                        "success": True,
+                        "message": "SMS does not contain valid transaction information",
+                        "parsed_data": transaction_data,
+                    }
+                ),
+                200,
+            )
+
+        # Check if sheet manager is available
+        if not sheet_manager:
+            logger.error("Sheet Manager not initialized")
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Service unavailable",
+                        "message": "Google Sheets service is not available",
+                    }
+                ),
+                503,
+            )
+
+        # Insert into Google Sheets
+        success = sheet_manager.insert_transaction_data(transaction_data, date)
+
+        if success:
+            sheet_url = sheet_manager.get_sheet_url(date)
+            response = {
+                "success": True,
+                "message": "Transaction logged successfully",
+                "data": {
+                    "transaction_data": transaction_data,
+                    "date": date.isoformat(),
+                    "sheet_url": sheet_url,
+                },
+            }
+            logger.info(f"Transaction logged successfully for date: {date}")
+            return jsonify(response), 201
+        else:
+            logger.error("Failed to insert transaction into Google Sheets")
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Database error",
+                        "message": "Failed to insert transaction into Google Sheets",
+                    }
+                ),
+                500,
+            )
+
+    except BadRequest as e:
+        logger.warning(f"Bad request: {e}")
+        return (
+            jsonify({"success": False, "error": str(e), "message": "Bad request"}),
+            400,
+        )
+
+    except Exception as e:
+        logger.error(f"Unexpected error in log_sms_transaction: {e}")
+        return (
+            jsonify(
+                {
+                    "success": False,
+                    "error": str(e),
+                    "message": "Internal server error",
+                }
+            ),
+            500,
+        )
+
+
+@app.route(f"{AppConfig.API_PREFIX}/transactions/<string:date>", methods=["GET"])
+def get_transactions_by_date(date: str):
+    """
+    Get all transactions for a specific date.
+
+    URL format: /api/v1/transactions/2025-09-05
+
+    Returns all transactions for the specified date.
+    """
+    try:
+        if not sheet_manager:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Service unavailable",
+                        "message": "Google Sheets service is not available",
+                    }
+                ),
+                503,
+            )
+
+        # Validate and parse date
+        try:
+            parsed_date = datetime.strptime(date, "%Y-%m-%d")
+        except ValueError:
+            raise BadRequest("Invalid date format. Use format: 'YYYY-MM-DD'")
+
+        # Get transactions for the date
+        transactions = sheet_manager.get_transactions_by_date(parsed_date)
+        
+        # Transform transactions to use row_index instead of _row_index
+        formatted_transactions = []
+        for transaction in transactions:
+            formatted_transaction = dict(transaction)
+            if "_row_index" in formatted_transaction:
+                formatted_transaction["row_index"] = formatted_transaction.pop("_row_index")
+            formatted_transactions.append(formatted_transaction)
+
+        # Format response
+        response_data = {
+            "date": date,
+            "transaction_count": len(formatted_transactions),
+            "transactions": formatted_transactions,
+            "generated_at": datetime.now().isoformat(),
+        }
+
+        return (
+            jsonify(
+                {
+                    "success": True,
+                    "data": response_data,
+                    "message": f"Retrieved {len(transactions)} transactions for {date}",
+                }
+            ),
+            200,
+        )
+
+    except BadRequest as e:
+        logger.warning(f"Bad request in get_transactions_by_date: {e}")
+        return (
+            jsonify({"success": False, "error": str(e), "message": "Bad request"}),
+            400,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in get_transactions_by_date: {e}")
+        return (
+            jsonify(
+                {"success": False, "error": str(e), "message": "Internal server error"}
+            ),
+            500,
+        )
+
+
+@app.route(f"{AppConfig.API_PREFIX}/transactions", methods=["PATCH"])
+def update_transaction():
+    """
+    Update multiple fields in a transaction.
+
+    URL format: /api/v1/transactions
+
+    Expected JSON payload:
+    {
+        "sheet_name": "September-2025",
+        "row_index": 3,
+        "updates": {
+            "Type": "Food Order",
+            "Friend Split": "75.00",
+            "Notes": "Updated notes"
+        }
+    }
+    """
+    try:
+        if not sheet_manager:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Service unavailable",
+                        "message": "Google Sheets service is not available",
+                    }
+                ),
+                503,
+            )
+
+        # Validate request
+        if not request.is_json:
+            raise BadRequest("Request must be JSON")
+
+        data = request.get_json()
+        if not data:
+            raise BadRequest("Request body is empty")
+
+        # Extract required fields from payload
+        sheet_name = data.get("sheet_name")
+        row_index = data.get("row_index")
+        updates = data.get("updates", {})
+
+        # Validate required fields
+        if not sheet_name:
+            raise BadRequest("'sheet_name' field is required")
+        
+        if not row_index:
+            raise BadRequest("'row_index' field is required")
+        
+        if not isinstance(row_index, int):
+            raise BadRequest("'row_index' must be an integer")
+
+        # Validate row index
+        if row_index < 2:
+            raise BadRequest("Invalid row index. Row index must be >= 2 (data rows only)")
+
+        # Validate field updates
+        field_updates = {}
+        for field_name, value in updates.items():
+            # Check if field name is valid (exists in header row)
+            try:
+                from config import SheetConfig
+                SheetConfig.get_column_letter(field_name)
+                field_updates[field_name] = value
+            except ValueError:
+                raise BadRequest(f"Invalid field name: '{field_name}'. Must be one of: {', '.join(SheetConfig.HEADER_ROW)}")
+
+        if not field_updates:
+            raise BadRequest("No valid field updates provided in 'updates' object")
+
+        # Perform update
+        success = sheet_manager.update_transaction_fields(sheet_name, row_index, field_updates)
+
+        if success:
+            response_data = {
+                "sheet_name": sheet_name,
+                "row_index": row_index,
+                "updated_fields": field_updates,
+                "updated_at": datetime.now().isoformat(),
+            }
+
+            logger.info(f"Transaction updated successfully: {sheet_name} row {row_index}")
+            return (
+                jsonify(
+                    {
+                        "success": True,
+                        "data": response_data,
+                        "message": f"Transaction updated successfully in {sheet_name} at row {row_index}",
+                    }
+                ),
+                200,
+            )
+        else:
+            logger.error(f"Failed to update transaction: {sheet_name} row {row_index}")
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Update failed",
+                        "message": "Failed to update transaction in Google Sheets",
+                    }
+                ),
+                500,
+            )
+
+    except BadRequest as e:
+        logger.warning(f"Bad request in update_transaction: {e}")
+        return (
+            jsonify({"success": False, "error": str(e), "message": "Bad request"}),
+            400,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in update_transaction: {e}")
+        return (
+            jsonify(
+                {"success": False, "error": str(e), "message": "Internal server error"}
+            ),
+            500,
+        )
+
+
+@app.route(f"{AppConfig.API_PREFIX}/transactions", methods=["DELETE"])
+def delete_transaction():
+    """
+    Delete a transaction row.
+
+    URL format: /api/v1/transactions
+
+    Expected JSON payload:
+    {
+        "sheet_name": "September-2025",
+        "row_index": 3
+    }
+    """
+    try:
+        if not sheet_manager:
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Service unavailable",
+                        "message": "Google Sheets service is not available",
+                    }
+                ),
+                503,
+            )
+
+        # Validate request
+        if not request.is_json:
+            raise BadRequest("Request must be JSON")
+
+        data = request.get_json()
+        if not data:
+            raise BadRequest("Request body is empty")
+
+        # Extract required fields from payload
+        sheet_name = data.get("sheet_name")
+        row_index = data.get("row_index")
+
+        # Validate required fields
+        if not sheet_name:
+            raise BadRequest("'sheet_name' field is required")
+        
+        if not row_index:
+            raise BadRequest("'row_index' field is required")
+        
+        if not isinstance(row_index, int):
+            raise BadRequest("'row_index' must be an integer")
+
+        # Validate row index
+        if row_index < 2:
+            raise BadRequest("Invalid row index. Row index must be >= 2 (data rows only)")
+
+        # Perform deletion
+        success = sheet_manager.delete_transaction_row(sheet_name, row_index)
+
+        if success:
+            response_data = {
+                "sheet_name": sheet_name,
+                "deleted_row_index": row_index,
+                "deleted_at": datetime.now().isoformat(),
+            }
+
+            logger.info(f"Transaction deleted successfully: {sheet_name} row {row_index}")
+            return (
+                jsonify(
+                    {
+                        "success": True,
+                        "data": response_data,
+                        "message": f"Transaction deleted successfully from {sheet_name} at row {row_index}",
+                    }
+                ),
+                200,
+            )
+        else:
+            logger.error(f"Failed to delete transaction: {sheet_name} row {row_index}")
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "error": "Deletion failed",
+                        "message": "Failed to delete transaction from Google Sheets",
+                    }
+                ),
+                500,
+            )
+
+    except BadRequest as e:
+        logger.warning(f"Bad request in delete_transaction: {e}")
+        return (
+            jsonify({"success": False, "error": str(e), "message": "Bad request"}),
+            400,
+        )
+    except Exception as e:
+        logger.error(f"Unexpected error in delete_transaction: {e}")
         return (
             jsonify(
                 {"success": False, "error": str(e), "message": "Internal server error"}

@@ -13,10 +13,13 @@ http://localhost:5000
 | Endpoint                      | Method | Description                       | Authentication |
 | ----------------------------- | ------ | --------------------------------- | -------------- |
 | `/health`                     | GET    | Health check                      | None           |
-| `/api/v1/log`                 | POST   | Log SMS transaction               | X-API-KEY      |
+| `/api/v1/transactions`        | POST   | Log SMS transaction               | X-API-KEY      |
 | `/api/v1/parse-sms`           | POST   | Test SMS parsing                  | X-API-KEY      |
 | `/api/v1/sheets/{month-year}` | GET    | Get sheet information             | X-API-KEY      |
 | `/api/v1/stats/{month-year}`  | GET    | Get specific month spending stats | X-API-KEY      |
+| `/api/v1/transactions/{date}` | GET    | Get transactions by date          | X-API-KEY      |
+| `/api/v1/transactions`        | PATCH  | Update transaction fields         | X-API-KEY      |
+| `/api/v1/transactions`        | DELETE | Delete transaction row            | X-API-KEY      |
 
 **Note**: All API responses follow a consistent structure with `success`, `data`/`error`, and `message` fields.
 
@@ -94,7 +97,7 @@ curl http://localhost:5000/health
 
 ### 2. Log SMS Transaction
 
-**Endpoint**: `POST /api/v1/log`
+**Endpoint**: `POST /api/v1/transactions`
 
 **Description**: Parse SMS text and log the transaction to Google Sheets.
 
@@ -184,7 +187,7 @@ curl http://localhost:5000/health
 **Example**:
 
 ```bash
-curl -X POST http://localhost:5000/api/v1/log \
+curl -X POST http://localhost:5000/api/v1/transactions \
   -H "Content-Type: application/json" \
   -H "X-API-KEY: your-api-key-here" \
   -d '{
@@ -425,6 +428,249 @@ curl http://localhost:5000/api/v1/stats/July-2025
 
 ---
 
+### 6. Get Transactions by Date
+
+**Endpoint**: `GET /api/v1/transactions/{date}`
+
+**Description**: Retrieve all transactions for a specific date.
+
+**Parameters**:
+
+- **Path Parameter**: `date` (string) - Date in format `YYYY-MM-DD` (e.g., `2025-09-05`)
+
+**Headers**:
+
+```
+X-API-KEY: your-api-key-here
+```
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "date": "2025-09-05",
+    "transaction_count": 2,
+    "transactions": [
+      {
+        "row_index": 3,
+        "Date": "2025-09-05",
+        "Transaction ID": "TXN123456",
+        "Amount": "-50.00",
+        "Type": "Food Order",
+        "Friend Split": "25.00",
+        "Notes": "Lunch with friends",
+        "Account": "HDFC Credit Card ***1234"
+      },
+      {
+        "row_index": 4,
+        "Date": "2025-09-05",
+        "Transaction ID": "TXN789012",
+        "Amount": "-20.00",
+        "Type": "Transport",
+        "Friend Split": "0.00",
+        "Notes": "Uber ride",
+        "Account": "HDFC Debit Card ***5678"
+      }
+    ],
+    "generated_at": "2025-09-05T14:30:00.000Z"
+  },
+  "message": "Retrieved 2 transactions for 2025-09-05"
+}
+```
+
+**Error Responses**:
+
+**400 Bad Request** (Invalid date format):
+
+```json
+{
+  "success": false,
+  "error": "Invalid date format. Use format: 'YYYY-MM-DD'",
+  "message": "Bad request"
+}
+```
+
+**Example**:
+
+```bash
+curl -H "X-API-KEY: your-api-key" \
+     http://localhost:5000/api/v1/transactions/2025-09-05
+```
+
+---
+
+### 7. Update Transaction Fields
+
+**Endpoint**: `PATCH /api/v1/transactions`
+
+**Description**: Update multiple fields in a specific transaction row.
+
+**Headers**:
+
+```
+Content-Type: application/json
+X-API-KEY: your-api-key-here
+```
+
+**Request Body**:
+
+```json
+{
+  "sheet_name": "September-2025",
+  "row_index": 3,
+  "updates": {
+    "Type": "Food Order",
+    "Friend Split": "75.00",
+    "Notes": "Updated notes for transaction"
+  }
+}
+```
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "sheet_name": "September-2025",
+    "row_index": 3,
+    "updated_fields": {
+      "Type": "Food Order",
+      "Friend Split": "75.00",
+      "Notes": "Updated notes for transaction"
+    },
+    "updated_at": "2025-09-05T14:35:00.000Z"
+  },
+  "message": "Transaction updated successfully in September-2025 at row 3"
+}
+```
+
+**Error Responses**:
+
+**400 Bad Request** (Missing required field):
+
+```json
+{
+  "success": false,
+  "error": "'sheet_name' field is required",
+  "message": "Bad request"
+}
+```
+
+**400 Bad Request** (Invalid field name):
+
+```json
+{
+  "success": false,
+  "error": "Invalid field name: 'InvalidField'. Must be one of: Date, Transaction ID, Amount, Type, Friend Split, Notes, Account",
+  "message": "Bad request"
+}
+```
+
+**400 Bad Request** (Invalid row index):
+
+```json
+{
+  "success": false,
+  "error": "Invalid row index. Row index must be >= 2 (data rows only)",
+  "message": "Bad request"
+}
+```
+
+**Example**:
+
+```bash
+curl -X PATCH \
+     -H "Content-Type: application/json" \
+     -H "X-API-KEY: your-api-key" \
+     -d '{"sheet_name": "September-2025", "row_index": 3, "updates": {"Type": "Food Order", "Notes": "Updated notes"}}' \
+     http://localhost:5000/api/v1/transactions
+```
+
+---
+
+### 8. Delete Transaction Row
+
+**Endpoint**: `DELETE /api/v1/transactions`
+
+**Description**: Delete a complete transaction row from the specified sheet.
+
+**Headers**:
+
+```
+Content-Type: application/json
+X-API-KEY: your-api-key-here
+```
+
+**Request Body**:
+
+```json
+{
+  "sheet_name": "September-2025",
+  "row_index": 3
+}
+```
+
+**Response**:
+
+```json
+{
+  "success": true,
+  "data": {
+    "sheet_name": "September-2025",
+    "deleted_row_index": 3,
+    "deleted_at": "2025-09-05T14:40:00.000Z"
+  },
+  "message": "Transaction deleted successfully from September-2025 at row 3"
+}
+```
+
+**Error Responses**:
+
+**400 Bad Request** (Missing required field):
+
+```json
+{
+  "success": false,
+  "error": "'sheet_name' field is required",
+  "message": "Bad request"
+}
+```
+
+**400 Bad Request** (Invalid row index):
+
+```json
+{
+  "success": false,
+  "error": "Invalid row index. Row index must be >= 2 (data rows only)",
+  "message": "Bad request"
+}
+```
+
+**500 Internal Server Error** (Deletion failed):
+
+```json
+{
+  "success": false,
+  "error": "Deletion failed",
+  "message": "Failed to delete transaction from Google Sheets"
+}
+```
+
+**Example**:
+
+```bash
+curl -X DELETE \
+     -H "Content-Type: application/json" \
+     -H "X-API-KEY: your-api-key" \
+     -d '{"sheet_name": "September-2025", "row_index": 3}' \
+     http://localhost:5000/api/v1/transactions
+```
+
+---
+
 ## 📊 Caching Information
 
 ### Statistics Endpoints Caching
@@ -477,7 +723,7 @@ All errors follow this format:
 ```javascript
 // Log SMS transaction
 async function logSMS(smsText, date, apiKey) {
-  const response = await fetch("http://localhost:5000/api/v1/log", {
+  const response = await fetch("http://localhost:5000/api/v1/transactions", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
@@ -517,7 +763,7 @@ import json
 
 # Log SMS transaction
 def log_sms(sms_text, api_key, date=None):
-    url = 'http://localhost:5000/api/v1/log'
+    url = 'http://localhost:5000/api/v1/transactions'
     headers = {'X-API-KEY': api_key}
     payload = {'text': sms_text}
     if date:
@@ -548,7 +794,7 @@ def get_spending_stats(api_key, month_year=None):
 # Test all endpoints
 curl http://localhost:5000/health
 curl -X POST http://localhost:5000/api/v1/parse-sms -H "Content-Type: application/json" -H "X-API-KEY: your-api-key-here" -d '{"text": "Test SMS"}'
-curl -X POST http://localhost:5000/api/v1/log -H "Content-Type: application/json" -H "X-API-KEY: your-api-key-here" -d '{"text": "Test SMS", "date": "2025-07-14T10:30:00"}'
+curl -X POST http://localhost:5000/api/v1/transactions -H "Content-Type: application/json" -H "X-API-KEY: your-api-key-here" -d '{"text": "Test SMS", "date": "2025-07-14T10:30:00"}'
 curl -H "X-API-KEY: your-api-key-here" http://localhost:5000/api/v1/sheets/July-2025
 curl -H "X-API-KEY: your-api-key-here" http://localhost:5000/api/v1/stats/July-2025
 ```

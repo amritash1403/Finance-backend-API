@@ -499,6 +499,12 @@ class ComprehensiveTestSuite:
         # Test stats endpoints
         self._test_stats_endpoints()
 
+        # Test transaction management endpoints
+        self._test_transaction_management()
+
+        # Test endpoint validation
+        self._test_endpoint_validation()
+
     def _test_health_endpoint(self):
         """Test health check endpoint."""
         print("\n🔍 Testing health endpoint...")
@@ -529,7 +535,7 @@ class ComprehensiveTestSuite:
 
         try:
             response = requests.post(
-                f"{self.base_url}/api/v1/log",
+                f"{self.base_url}/api/v1/transactions",
                 json=test_payload,
                 headers=self.auth_headers,
                 timeout=10,
@@ -641,6 +647,271 @@ class ComprehensiveTestSuite:
 
         except requests.exceptions.RequestException as e:
             print(f"❌ Specific month stats endpoint connection error: {e}")
+            self.test_results["api"]["failed"] += 1
+
+    def _test_transaction_management(self):
+        """Test transaction management endpoints (PATCH/DELETE)."""
+        print("\n🔍 Testing transaction management endpoints...")
+        
+        # Test date and sheet name
+        test_date = "2025-09-25"
+        sheet_name = "September-2025"
+        test_row = None
+        
+        try:
+            # Step 1: Insert test transaction using log endpoint
+            print("\n  ↳ 1. Inserting test transaction...")
+            unique_amount = "50.99"  # Use unique amount for easier identification
+            sms_text = f"HDFC Bank: Rs.{unique_amount} debited from A/c **999 on 25-Sep-25 at API Test Store. Avl Bal: Rs.1000.00"
+            log_data = {
+                "text": sms_text,
+                "date": f"{test_date}T10:30:00.000Z"
+            }
+            
+            response = requests.post(
+                f"{self.base_url}/api/v1/transactions",
+                headers=self.auth_headers,
+                json=log_data,
+                timeout=15
+            )
+            
+            if response.status_code in [200, 201]:
+                print("    ✅ Test transaction logged successfully")
+            else:
+                print(f"    ❌ Failed to log test transaction: {response.status_code}")
+                self.test_results["api"]["failed"] += 1
+                return
+            
+            import time
+            time.sleep(2)  # Rate limiting delay
+            
+            # Step 2: Get transactions to find our test transaction
+            print("  ↳ 2. Getting transactions to find test transaction...")
+            response = requests.get(
+                f"{self.base_url}/api/v1/transactions/{test_date}",
+                headers={"X-API-KEY": self.api_key},
+                timeout=15
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                transactions = data["data"]["transactions"]
+                
+                # Find our test transaction by unique amount and date
+                test_transactions = [
+                    t for t in transactions 
+                    if (t.get("Amount") == unique_amount and 
+                        t.get("Date") == test_date)
+                ]
+                if test_transactions:
+                    test_row = test_transactions[0]["row_index"]
+                    print(f"    ✅ Found test transaction at row {test_row}")
+                    print(f"       Amount: {test_transactions[0].get('Amount')}")
+                    print(f"       Description: {test_transactions[0].get('Description', 'N/A')}")
+                else:
+                    print("    ❌ Could not find test transaction")
+                    print(f"       Looking for: Amount={unique_amount}, Date={test_date}")
+                    if transactions:
+                        print(f"       Available transactions: {len(transactions)}")
+                        # Show last few transactions for debugging
+                        for i, t in enumerate(transactions[-3:], 1):
+                            print(f"         {i}. Amount={t.get('Amount')}, Date={t.get('Date')}, Row={t.get('row_index')}")
+                    self.test_results["api"]["failed"] += 1
+                    return
+            else:
+                print(f"    ❌ Failed to get transactions: {response.status_code}")
+                self.test_results["api"]["failed"] += 1
+                return
+            
+            time.sleep(2)  # Rate limiting delay
+            
+            # Step 3: Update transaction using PATCH endpoint
+            print("  ↳ 3. Testing PATCH endpoint...")
+            update_data = {
+                "sheet_name": sheet_name,
+                "row_index": test_row,
+                "updates": {
+                    "Type": "API Test",
+                    "Notes": "Updated via API integration test",
+                    "Friend Split": "10.00"
+                }
+            }
+            
+            response = requests.patch(
+                f"{self.base_url}/api/v1/transactions",
+                headers=self.auth_headers,
+                json=update_data,
+                timeout=15
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                print("    ✅ PATCH endpoint working")
+                print(f"       Updated fields: {data['data']['updated_fields']}")
+                self.test_results["api"]["passed"] += 1
+            else:
+                print(f"    ❌ PATCH endpoint failed: {response.status_code}")
+                self.test_results["api"]["failed"] += 1
+                return
+            
+            time.sleep(2)  # Rate limiting delay
+            
+            # Step 4: Verify update
+            print("  ↳ 4. Verifying update...")
+            response = requests.get(
+                f"{self.base_url}/api/v1/transactions/{test_date}",
+                headers={"X-API-KEY": self.api_key},
+                timeout=15
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                transactions = data["data"]["transactions"]
+                
+                # Find the updated transaction
+                updated_transaction = None
+                for t in transactions:
+                    if t["row_index"] == test_row:
+                        updated_transaction = t
+                        break
+                
+                if (updated_transaction and 
+                    updated_transaction.get("Type") == "API Test" and
+                    "Updated via API integration test" in updated_transaction.get("Notes", "")):
+                    print("    ✅ Update verified successfully")
+                    self.test_results["api"]["passed"] += 1
+                else:
+                    print("    ❌ Update verification failed")
+                    self.test_results["api"]["failed"] += 1
+            else:
+                print(f"    ❌ Failed to verify update: {response.status_code}")
+                self.test_results["api"]["failed"] += 1
+            
+            time.sleep(2)  # Rate limiting delay
+            
+            # Step 5: Test DELETE endpoint
+            print("  ↳ 5. Testing DELETE endpoint...")
+            delete_data = {
+                "sheet_name": sheet_name,
+                "row_index": test_row
+            }
+            
+            response = requests.delete(
+                f"{self.base_url}/api/v1/transactions",
+                headers=self.auth_headers,
+                json=delete_data,
+                timeout=15
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                print("    ✅ DELETE endpoint working")
+                print(f"       Deleted row: {data['data']['deleted_row_index']}")
+                self.test_results["api"]["passed"] += 1
+            else:
+                print(f"    ❌ DELETE endpoint failed: {response.status_code}")
+                self.test_results["api"]["failed"] += 1
+            
+            print("✅ Transaction management endpoints tested successfully")
+            
+        except requests.exceptions.ConnectionError:
+            print("    ❌ Connection error: Is the Flask server running?")
+            self.test_results["api"]["failed"] += 1
+        except requests.exceptions.Timeout:
+            print("    ❌ Request timeout")
+            self.test_results["api"]["failed"] += 1
+        except Exception as e:
+            print(f"    ❌ Transaction management test error: {e}")
+            self.test_results["api"]["failed"] += 1
+
+    def _test_endpoint_validation(self):
+        """Test endpoint validation for PATCH and DELETE operations."""
+        print("\n🔍 Testing endpoint validation...")
+        
+        try:
+            # Test PATCH endpoint validation
+            print("  ↳ Testing PATCH validation...")
+            
+            # Test missing sheet_name
+            response = requests.patch(
+                f"{self.base_url}/api/v1/transactions",
+                headers=self.auth_headers,
+                json={"row_index": 2, "updates": {"Type": "Test"}},
+                timeout=10
+            )
+            if response.status_code == 400 and "sheet_name" in response.json().get("error", ""):
+                print("    ✅ Missing sheet_name validation working")
+                self.test_results["api"]["passed"] += 1
+            else:
+                print(f"    ❌ Missing sheet_name validation failed: {response.status_code}")
+                self.test_results["api"]["failed"] += 1
+            
+            # Test missing row_index
+            response = requests.patch(
+                f"{self.base_url}/api/v1/transactions",
+                headers=self.auth_headers,
+                json={"sheet_name": "September-2025", "updates": {"Type": "Test"}},
+                timeout=10
+            )
+            if response.status_code == 400 and "row_index" in response.json().get("error", ""):
+                print("    ✅ Missing row_index validation working")
+                self.test_results["api"]["passed"] += 1
+            else:
+                print(f"    ❌ Missing row_index validation failed: {response.status_code}")
+                self.test_results["api"]["failed"] += 1
+            
+            # Test missing updates
+            response = requests.patch(
+                f"{self.base_url}/api/v1/transactions",
+                headers=self.auth_headers,
+                json={"sheet_name": "September-2025", "row_index": 2},
+                timeout=10
+            )
+            if response.status_code == 400 and "updates" in response.json().get("error", ""):
+                print("    ✅ Missing updates validation working")
+                self.test_results["api"]["passed"] += 1
+            else:
+                print(f"    ❌ Missing updates validation failed: {response.status_code}")
+                self.test_results["api"]["failed"] += 1
+            
+            # Test DELETE endpoint validation
+            print("  ↳ Testing DELETE validation...")
+            
+            # Test missing sheet_name
+            response = requests.delete(
+                f"{self.base_url}/api/v1/transactions",
+                headers=self.auth_headers,
+                json={"row_index": 2},
+                timeout=10
+            )
+            if response.status_code == 400 and "sheet_name" in response.json().get("error", ""):
+                print("    ✅ DELETE missing sheet_name validation working")
+                self.test_results["api"]["passed"] += 1
+            else:
+                print(f"    ❌ DELETE missing sheet_name validation failed: {response.status_code}")
+                self.test_results["api"]["failed"] += 1
+            
+            # Test missing row_index
+            response = requests.delete(
+                f"{self.base_url}/api/v1/transactions",
+                headers=self.auth_headers,
+                json={"sheet_name": "September-2025"},
+                timeout=10
+            )
+            if response.status_code == 400 and "row_index" in response.json().get("error", ""):
+                print("    ✅ DELETE missing row_index validation working")
+                self.test_results["api"]["passed"] += 1
+            else:
+                print(f"    ❌ DELETE missing row_index validation failed: {response.status_code}")
+                self.test_results["api"]["failed"] += 1
+            
+            print("✅ Endpoint validation tests completed")
+            
+        except requests.exceptions.ConnectionError:
+            print("    ❌ Connection error during validation tests")
+            self.test_results["api"]["failed"] += 1
+        except Exception as e:
+            print(f"    ❌ Validation test error: {e}")
             self.test_results["api"]["failed"] += 1
 
     def test_performance_and_caching(self):
@@ -770,7 +1041,7 @@ class ComprehensiveTestSuite:
         # Log SMS without text field
         try:
             response = requests.post(
-                f"{self.base_url}/api/v1/log",
+                f"{self.base_url}/api/v1/transactions",
                 json={"date": "2025-07-19T10:30:00"},
                 headers=self.auth_headers,
                 timeout=5,
@@ -794,7 +1065,7 @@ class ComprehensiveTestSuite:
         print("\n🔍 Testing invalid date format...")
         try:
             response = requests.post(
-                f"{self.base_url}/api/v1/log",
+                f"{self.base_url}/api/v1/transactions",
                 json={"text": "This is a longer test SMS message to meet minimum length requirements", "date": "invalid-date"},
                 headers=self.auth_headers,
                 timeout=5,
