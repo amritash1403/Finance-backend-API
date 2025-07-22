@@ -565,7 +565,7 @@ class SheetManager:
                     self.logger.info(f"Returning cached transactions for {cache_key}")
                     return cached_data
                 
-            self.logger
+            self.logger.debug("No cached transactions found; proceeding to read data from the sheet.")
 
             # Read data from the sheet (skip header row)
             range_name = f"{sheet_name}!A2:{chr(ord('A') + len(SheetConfig.HEADER_ROW) - 1)}"
