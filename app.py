@@ -43,32 +43,12 @@ except Exception as e:
     sheet_manager = None
 
 
-# TODO: Temporary function to log memory usage
-# This can be removed or modified later based on performance needs.
-def log_memory_usage(tag=""):
-    process = psutil.Process(os.getpid())
-    mem_in_mb = process.memory_info().rss / (1024 * 1024)  # Resident Set Size in MB
-    logger.info(f"[MEMORY] {tag} - {mem_in_mb:.2f} MB")
-
-
-def log_objects(tag=""):
-    """
-    Log the number of objects in memory for debugging.
-    """
-    sheets_clients = len(objgraph.by_type("Resource"))
-    logger.info(f"[OBJGRAPH] Sheets API Resource objects: {sheets_clients}")
-
-
 @app.before_request
 def authenticate_api_request():
     """
     Middleware to authenticate API requests using X-API-KEY header.
     Only applies to routes starting with config.API_PREFIX.
     """
-    # Only check authentication for API routes
-    # TODO: Temporary logging for memory usage
-    log_memory_usage("Before Request")
-    log_objects("Before Request")
     logger.info(f"Request path: {request.path}")
 
     if request.path.startswith(AppConfig.API_PREFIX):
@@ -123,13 +103,7 @@ def authenticate_api_request():
 
         logger.debug(f"Valid API key provided for {request.path}")
 
-
-# TODO: Temporary logging for memory usage
-@app.after_request
-def after_request(response):
-    log_memory_usage("After Request")
-    log_objects("After Request")
-    return response
+        sheet_manager._clean_up()
 
 
 @app.route("/health", methods=["GET"])
@@ -453,13 +427,25 @@ def log_sms_transaction():
 
         # Validate text length
         if len(text) < AppConfig.MIN_SMS_LENGTH:
-            raise BadRequest(
-                f"SMS text too short (minimum {AppConfig.MIN_SMS_LENGTH} characters)"
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"SMS text too short (minimum {AppConfig.MIN_SMS_LENGTH} characters)",
+                    }
+                ),
+                200,
             )
 
         if len(text) > AppConfig.MAX_SMS_LENGTH:
-            raise BadRequest(
-                f"SMS text too long (maximum {AppConfig.MAX_SMS_LENGTH} characters)"
+            return (
+                jsonify(
+                    {
+                        "success": False,
+                        "message": f"SMS text too long (maximum {AppConfig.MAX_SMS_LENGTH} characters)",
+                    }
+                ),
+                200,
             )
 
         # Parse SMS using sms_parser

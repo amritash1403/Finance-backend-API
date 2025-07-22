@@ -66,6 +66,7 @@ class SheetManager:
         """Clean up the memory by clearing cache and reinitializing services if needed."""
         process = psutil.Process(os.getpid())
         mem_in_mb = process.memory_info().rss / (1024 * 1024)
+        self.logger.info(f"Current memory usage: {mem_in_mb:.2f} MB")
         if mem_in_mb > AppConfig.MEMORY_LIMIT_MB:
             self.monthly_spends_cache.clear()
             self.transactions_cache.clear()
@@ -384,7 +385,6 @@ class SheetManager:
         self, transaction_data: Dict[str, Any], date: datetime
     ) -> bool:
         """Insert transaction data into the appropriate monthly sheet."""
-        self._clean_up()  # Clean up cache if memory limit exceeded
         try:
             # Check if services are initialized
             if not self.service:
@@ -547,7 +547,6 @@ class SheetManager:
         Filter rows matching the given date in column A (Date column).
         Return as list of dictionaries with keys as per SheetConfig.HEADER_ROW.
         """
-        self._clean_up()  # Clean up cache if memory limit exceeded
         try:
             sheet_name = self._generate_sheet_name(date)
             date_str = date.strftime("%Y-%m-%d")
@@ -565,7 +564,9 @@ class SheetManager:
                     self.logger.info(f"Returning cached transactions for {cache_key}")
                     return cached_data
 
-            self.logger.debug("No cached transactions found; proceeding to read data from the sheet.")
+            self.logger.debug(
+                "No cached transactions found; proceeding to read data from the sheet."
+            )
 
             # Read data from the sheet (skip header row)
             range_name = (
@@ -768,8 +769,6 @@ class SheetManager:
 
     def get_month_spends(self, month: str, year: int) -> Dict[str, Any]:
         """Get total spends for a specific month and year."""
-        # Cleanup cache before adding new entry
-        self._clean_up()
         try:
             sheet_name = AppConfig.SHEET_NAME_FORMAT.format(month=month, year=year)
 
