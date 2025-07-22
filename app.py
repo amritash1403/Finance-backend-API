@@ -591,20 +591,12 @@ def get_transactions_by_date(date: str):
 
         # Get transactions for the date
         transactions = sheet_manager.get_transactions_by_date(parsed_date)
-        
-        # Transform transactions to use row_index instead of _row_index
-        formatted_transactions = []
-        for transaction in transactions:
-            formatted_transaction = dict(transaction)
-            if "_row_index" in formatted_transaction:
-                formatted_transaction["row_index"] = formatted_transaction.pop("_row_index")
-            formatted_transactions.append(formatted_transaction)
 
         # Format response
         response_data = {
             "date": date,
-            "transaction_count": len(formatted_transactions),
-            "transactions": formatted_transactions,
+            "transaction_count": len(transactions),
+            "transactions": transactions,
             "generated_at": datetime.now().isoformat(),
         }
 
@@ -682,16 +674,18 @@ def update_transaction():
         # Validate required fields
         if not sheet_name:
             raise BadRequest("'sheet_name' field is required")
-        
+
         if not row_index:
             raise BadRequest("'row_index' field is required")
-        
+
         if not isinstance(row_index, int):
             raise BadRequest("'row_index' must be an integer")
 
         # Validate row index
         if row_index < 2:
-            raise BadRequest("Invalid row index. Row index must be >= 2 (data rows only)")
+            raise BadRequest(
+                "Invalid row index. Row index must be >= 2 (data rows only)"
+            )
 
         # Validate field updates
         field_updates = {}
@@ -699,16 +693,21 @@ def update_transaction():
             # Check if field name is valid (exists in header row)
             try:
                 from config import SheetConfig
+
                 SheetConfig.get_column_letter(field_name)
                 field_updates[field_name] = value
             except ValueError:
-                raise BadRequest(f"Invalid field name: '{field_name}'. Must be one of: {', '.join(SheetConfig.HEADER_ROW)}")
+                raise BadRequest(
+                    f"Invalid field name: '{field_name}'. Must be one of: {', '.join(SheetConfig.HEADER_ROW)}"
+                )
 
         if not field_updates:
             raise BadRequest("No valid field updates provided in 'updates' object")
 
         # Perform update
-        success = sheet_manager.update_transaction_fields(sheet_name, row_index, field_updates)
+        success = sheet_manager.update_transaction_fields(
+            sheet_name, row_index, field_updates
+        )
 
         if success:
             response_data = {
@@ -718,7 +717,9 @@ def update_transaction():
                 "updated_at": datetime.now().isoformat(),
             }
 
-            logger.info(f"Transaction updated successfully: {sheet_name} row {row_index}")
+            logger.info(
+                f"Transaction updated successfully: {sheet_name} row {row_index}"
+            )
             return (
                 jsonify(
                     {
@@ -799,16 +800,18 @@ def delete_transaction():
         # Validate required fields
         if not sheet_name:
             raise BadRequest("'sheet_name' field is required")
-        
+
         if not row_index:
             raise BadRequest("'row_index' field is required")
-        
+
         if not isinstance(row_index, int):
             raise BadRequest("'row_index' must be an integer")
 
         # Validate row index
         if row_index < 2:
-            raise BadRequest("Invalid row index. Row index must be >= 2 (data rows only)")
+            raise BadRequest(
+                "Invalid row index. Row index must be >= 2 (data rows only)"
+            )
 
         # Perform deletion
         success = sheet_manager.delete_transaction_row(sheet_name, row_index)
@@ -820,7 +823,9 @@ def delete_transaction():
                 "deleted_at": datetime.now().isoformat(),
             }
 
-            logger.info(f"Transaction deleted successfully: {sheet_name} row {row_index}")
+            logger.info(
+                f"Transaction deleted successfully: {sheet_name} row {row_index}"
+            )
             return (
                 jsonify(
                     {

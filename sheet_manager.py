@@ -27,7 +27,7 @@ class SheetManager:
 
         self.monthly_spends_cache = {}  # Cache for monthly spends data
         # {sheet_name: (data, timestamp)}
-        
+
         self.transactions_cache = {}  # Cache for transaction data by sheet
         # {sheet_name: (transactions_list, timestamp)}
 
@@ -551,7 +551,7 @@ class SheetManager:
         try:
             sheet_name = self._generate_sheet_name(date)
             date_str = date.strftime("%Y-%m-%d")
-            
+
             # Check if sheet exists
             if not self._sheet_exists(sheet_name):
                 self.logger.warning(f"Sheet '{sheet_name}' does not exist")
@@ -564,11 +564,13 @@ class SheetManager:
                 if time.time() - cache_timestamp < 60:  # 1 minute cache
                     self.logger.info(f"Returning cached transactions for {cache_key}")
                     return cached_data
-                
+
             self.logger.debug("No cached transactions found; proceeding to read data from the sheet.")
 
             # Read data from the sheet (skip header row)
-            range_name = f"{sheet_name}!A2:{chr(ord('A') + len(SheetConfig.HEADER_ROW) - 1)}"
+            range_name = (
+                f"{sheet_name}!A2:{chr(ord('A') + len(SheetConfig.HEADER_ROW) - 1)}"
+            )
             result = (
                 self.service.spreadsheets()
                 .values()
@@ -579,7 +581,9 @@ class SheetManager:
             values = result.get("values", [])
             matching_transactions = []
 
-            for row_index, row in enumerate(values, start=2):  # Start from row 2 (1-based)
+            for row_index, row in enumerate(
+                values, start=2
+            ):  # Start from row 2 (1-based)
                 # Ensure row has enough columns
                 while len(row) < len(SheetConfig.HEADER_ROW):
                     row.append("")
@@ -590,23 +594,29 @@ class SheetManager:
                     # Create transaction dictionary
                     transaction = {}
                     for col_index, header in enumerate(SheetConfig.HEADER_ROW):
-                        transaction[header] = row[col_index] if col_index < len(row) else ""
-                    
+                        transaction[header] = (
+                            row[col_index] if col_index < len(row) else ""
+                        )
+
                     # Add row index for reference (1-based for Google Sheets)
-                    transaction["_row_index"] = row_index
+                    transaction["row_index"] = row_index
                     matching_transactions.append(transaction)
 
             # Cache the result
             self.transactions_cache[cache_key] = (matching_transactions, time.time())
-            
-            self.logger.info(f"Found {len(matching_transactions)} transactions for date {date_str} in sheet {sheet_name}")
+
+            self.logger.info(
+                f"Found {len(matching_transactions)} transactions for date {date_str} in sheet {sheet_name}"
+            )
             return matching_transactions
 
         except Exception as e:
             self.logger.error(f"Error getting transactions by date: {e}")
             return []
 
-    def update_transaction_fields(self, sheet_name: str, row_index: int, field_updates: Dict[str, Any]) -> bool:
+    def update_transaction_fields(
+        self, sheet_name: str, row_index: int, field_updates: Dict[str, Any]
+    ) -> bool:
         """
         Update multiple fields in the given row (row_index, 1-based).
         field_updates is a dictionary where:
@@ -635,14 +645,15 @@ class SheetManager:
                     # Get column letter for the field
                     col_letter = SheetConfig.get_column_letter(field_name)
                     range_name = f"{sheet_name}!{col_letter}{row_index}"
-                    
-                    update_data.append({
-                        "range": range_name,
-                        "values": [[str(new_value)]]
-                    })
-                    
-                    self.logger.info(f"Preparing update for {field_name} -> {new_value} at {range_name}")
-                    
+
+                    update_data.append(
+                        {"range": range_name, "values": [[str(new_value)]]}
+                    )
+
+                    self.logger.info(
+                        f"Preparing update for {field_name} -> {new_value} at {range_name}"
+                    )
+
                 except ValueError as e:
                     self.logger.error(f"Invalid field name '{field_name}': {e}")
                     continue
@@ -654,21 +665,25 @@ class SheetManager:
             # Perform batch update in a single API call
             body = {
                 "valueInputOption": "USER_ENTERED",  # Allow formulas
-                "data": update_data
+                "data": update_data,
             }
 
-            result = self.service.spreadsheets().values().batchUpdate(
-                spreadsheetId=self.shared_workbook_id,
-                body=body
-            ).execute()
+            result = (
+                self.service.spreadsheets()
+                .values()
+                .batchUpdate(spreadsheetId=self.shared_workbook_id, body=body)
+                .execute()
+            )
 
             # Log successful updates
             updated_cells = result.get("totalUpdatedCells", 0)
-            self.logger.info(f"Successfully updated {updated_cells} cells in row {row_index} of sheet '{sheet_name}'")
-            
+            self.logger.info(
+                f"Successfully updated {updated_cells} cells in row {row_index} of sheet '{sheet_name}'"
+            )
+
             # Invalidate related cache entries
             self._invalidate_sheet_cache(sheet_name)
-            
+
             return True
 
         except Exception as e:
@@ -699,28 +714,31 @@ class SheetManager:
             sheet_id = self._get_sheet_id_by_name(self.shared_workbook_id, sheet_name)
 
             # Prepare delete request
-            requests = [{
-                "deleteDimension": {
-                    "range": {
-                        "sheetId": sheet_id,
-                        "dimension": "ROWS",
-                        "startIndex": row_index - 1,  # Convert to 0-based index
-                        "endIndex": row_index  # End index is exclusive
+            requests = [
+                {
+                    "deleteDimension": {
+                        "range": {
+                            "sheetId": sheet_id,
+                            "dimension": "ROWS",
+                            "startIndex": row_index - 1,  # Convert to 0-based index
+                            "endIndex": row_index,  # End index is exclusive
+                        }
                     }
                 }
-            }]
+            ]
 
             # Execute the deletion
             self.service.spreadsheets().batchUpdate(
-                spreadsheetId=self.shared_workbook_id,
-                body={"requests": requests}
+                spreadsheetId=self.shared_workbook_id, body={"requests": requests}
             ).execute()
 
-            self.logger.info(f"Successfully deleted row {row_index} from sheet '{sheet_name}'")
-            
+            self.logger.info(
+                f"Successfully deleted row {row_index} from sheet '{sheet_name}'"
+            )
+
             # Invalidate related cache entries
             self._invalidate_sheet_cache(sheet_name)
-            
+
             return True
 
         except Exception as e:
@@ -736,7 +754,11 @@ class SheetManager:
                 self.logger.debug(f"Invalidated monthly spends cache for {sheet_name}")
 
             # Remove transaction cache entries for this sheet
-            keys_to_remove = [key for key in self.transactions_cache.keys() if key.startswith(sheet_name)]
+            keys_to_remove = [
+                key
+                for key in self.transactions_cache.keys()
+                if key.startswith(sheet_name)
+            ]
             for key in keys_to_remove:
                 del self.transactions_cache[key]
                 self.logger.debug(f"Invalidated transaction cache for {key}")
