@@ -197,7 +197,7 @@ def run_light_mode():
     run_waitress_server(
         host="0.0.0.0",
         port=5000,
-        threads=2,
+        threads=1,
         connection_limit=500,
         cleanup_interval=60,
         channel_timeout=120,

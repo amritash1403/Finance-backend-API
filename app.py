@@ -699,7 +699,6 @@ def update_transaction():
             response_data = {
                 "sheet_name": sheet_name,
                 "row_index": row_index,
-                "updated_fields": field_updates,
                 "updated_at": datetime.now().isoformat(),
             }
 
