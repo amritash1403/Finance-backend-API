@@ -108,21 +108,21 @@ class TransactionTypes:
 
     TYPES_WITH_COLORS = {
         "Food Order": "#FF6B6B",  # Red
-        "Office Lunch": "#F7B7A3",  # Light Red
+        "Office Cafeteria": "#F7B7A3",  # Light Red
         "Dining Out": "#FF9F43",  # Orange
         "Groceries": "#F8C471",  # Light Orange
-        "Retail": "#F5B041",  # Light Yellow
-        "Bill Payment": "#BB8FCE",  # Light Purple
-        "Subscription": "#85C1E9",  # Sky Blue
-        "Transportation": "#4ECDC4",  # Teal
+        "Travel": "#4ECDC4",  # Teal
         "Shopping": "#45B7D1",  # Blue
         "Entertainment": "#96CEB4",  # Green
-        "Utilities": "#FFEAA7",  # Yellow
+        "Utility Bills": "#FFEAA7",  # Yellow
         "Healthcare": "#DDA0DD",  # Plum
-        "Education": "#98D8C8",  # Mint
         "Investment": "#F7DC6F",  # Light Yellow
         "Transfer": "#AED6F1",  # Light Blue
-        "Cash Withdrawal": "#F1948A",  # Light Red
+        "Subscription": "#85C1E9",  # Sky Blue
+        "Rent": "#F1948A",  # Light Red
+        "Loan Repayment": "#F5B041",  # Light Yellow
+        "CC Bill": "#BB8FCE",  # Light Purple
+        "Education": "#98D8C8",  # Mint
         "Other": "#D5DBDB",  # Light Gray
     }
 
